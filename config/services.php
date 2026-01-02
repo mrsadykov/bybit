@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'bybit' => [
+        'key' => env('BYBIT_API_KEY'),
+        'secret' => env('BYBIT_API_SECRET'),
+    ]
 ];
