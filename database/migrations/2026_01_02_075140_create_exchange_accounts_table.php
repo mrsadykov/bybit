@@ -18,7 +18,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->string('exchange');
             $table->string('api_key');
-            $table->string('api_secret');
+            $table->text('api_secret');
         });
     }
 
