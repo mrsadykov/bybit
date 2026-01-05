@@ -1,59 +1,83 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+## Установка
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+### 1. Начальные действия
+``` 
+composer install
+php artisan migrate
+npm install
+npm run build 
+```
 
-## About Laravel
+### 2. Запуск команд - создание пользователя, создание настроек API-аккаунта
+```
+php artisan setup
+```
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### 3. Создание торгового бота для bybit
+```
+php artisan bybit-bot:create BTCUSDT 5 rsi_ema 0.00002
+```
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+### 4. Запуск всех активных торговых ботов (без торговли)
+```
+php artisan bots:run
+```
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### 5. 
 
-## Learning Laravel
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### Дополнительная информация
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+#### Связь моделей
 
-## Laravel Sponsors
+User
+└── ExchangeAccount (Bybit API)
+└── TradingBot
+└── Trade (много сделок)
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+#### Position Manager
 
-### Premium Partners
+Position Manager — это слой, который отвечает за вопрос:
+“Можно ли сейчас делать BUY или SELL?”
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+Индикаторы → Стратегия → Сигнал
+↓
+Position Manager
+↓
+Разрешить / Запретить
+↓
+Trade / Order
 
-## Contributing
+#### Этапы жизни ордера
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+PENDING → SENT → FILLED / PARTIALLY_FILLED / FAILED
 
-## Code of Conduct
+#### Запросы и в чем считаются
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Ключевые договорённости (важно зафиксировать)
+✅ Что у нас теперь означает:
 
-## Security Vulnerabilities
+trading_bots.position_size → USDT, сколько хотим потратить
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+BUY:
 
-## License
+считаем btcQty = position_size / price
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+в запросе ТОЛЬКО qty (BTC)
+
+SELL:
+
+продаём весь BTC, который есть у бота
+
+trades.quantity → BTC
+
+min_notional_usdt → проверка price * btcQty
+
+❌ quoteOrderQty — НЕ ИСПОЛЬЗУЕМ ВООБЩЕ
+
+
+
+
+
+
+
