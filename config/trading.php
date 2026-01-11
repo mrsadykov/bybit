@@ -8,4 +8,8 @@ return [
 
     // защита от дурака
     'max_trades_per_bot' => 1,
+
+    'bybit' => [
+        'env' => env('BYBIT_ENV', 'testnet'), // testnet | production
+    ],
 ];

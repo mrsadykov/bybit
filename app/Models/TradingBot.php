@@ -17,7 +17,8 @@ class TradingBot extends Model
         'position_size',
         'is_active',
         'last_trade_at',
-        'dry_run'
+        'dry_run',
+        //'is_testnet'
     ];
 
     protected $casts = [

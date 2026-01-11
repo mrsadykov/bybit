@@ -15,7 +15,7 @@ class RsiEmaStrategy
         $currentPrice = end($closes);
 
         // temp
-        return 'BUY';
+        //return 'BUY';
 
         if ($rsi < 30 && $currentPrice > $ema) {
             return 'BUY';

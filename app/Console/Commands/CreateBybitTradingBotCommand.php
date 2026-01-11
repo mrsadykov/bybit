@@ -13,7 +13,8 @@ class CreateBybitTradingBotCommand extends Command
         {symbol : BTCUSDT}
         {timeframe : 5m}
         {strategy : rsi_ema}
-        {position_size : 0.00006}';
+        {position_size : 0.00006}'
+    ;
 
     /**
      * Execute the console command.

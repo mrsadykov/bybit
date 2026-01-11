@@ -52,28 +52,95 @@ Trade / Order
 
 PENDING → SENT → FILLED / PARTIALLY_FILLED / FAILED
 
+### Команды
+#### Если сломалась бд? данные не синхронизированы?
+```
+php artisan trades:recover-bybit --symbol=BTCUSDT
+```
+
+#### Если нужно синхронизировать статусы ордеров? (поставить на крон, должен запускаться каждую минуту)
+```
+php artisan orders:sync
+```
+```
+* * * * * php /path/to/project/artisan schedule:run >> /dev/null 2>&1
+```
+
 #### Запросы и в чем считаются
 
-Ключевые договорённости (важно зафиксировать)
-✅ Что у нас теперь означает:
+#### до шага 9.4
 
-trading_bots.position_size → USDT, сколько хотим потратить
+Порядок действий правильный:
 
-BUY:
+Получили цену
 
-считаем btcQty = position_size / price
+Получили свечи
 
-в запросе ТОЛЬКО qty (BTC)
+Посчитали индикаторы
 
-SELL:
+Получили сигнал
 
-продаём весь BTC, который есть у бота
+Проверили позицию (PositionManager)
 
-trades.quantity → BTC
+Создали trade до запроса в биржу
 
-min_notional_usdt → проверка price * btcQty
+Отправили market BUY
 
-❌ quoteOrderQty — НЕ ИСПОЛЬЗУЕМ ВООБЩЕ
+Проверили retCode
+
+Сохранили order_id
+
+Проверили статус ордера (шаг 9.4)
+
+Обновили trade → FILLED / SENT / FAILED
+
+#### Жизненный цикл ордера BUY 
+[RunTradingBotsCommand]
+BUY сигнал
+→ trade PENDING
+→ placeMarketBuy
+→ trade SENT
+
+(через 5 сек / 30 сек)
+
+[SyncOrdersCommand]
+→ order Filled
+→ trade FILLED
+
+#### Жизненный цикл ордера sell
+[RunTradingBotsCommand]
+SELL сигнал
+→ create SELL trade (parent_id)
+→ placeMarketSell
+→ trade SENT
+
+[SyncOrdersCommand]
+→ FILLED
+
+#### Общая логика SELL (spot)
+
+1. Найти открытый BUY
+2. Понять, сколько можно продать
+3. Создать запись SELL (PENDING)
+4. Отправить market SELL на Bybit
+5. Сохранить order_id
+6. Дать бирже исполниться
+Через SyncOrdersCommand:
+- обновить SELL
+- посчитать PnL
+- закрыть BUY
+
+#### Итоговая схема (идеальная)
+RunTradingBotsCommand
+├─ BUY decision
+├─ SELL decision
+└─ create trades + send orders
+
+orders:sync
+├─ sync statuses
+├─ close BUY
+└─ calc PnL
+
 
 
 
