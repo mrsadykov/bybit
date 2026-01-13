@@ -20,11 +20,17 @@ class CreateAdminUserCommand extends Command
      */
     public function handle()
     {
-        User::firstOrCreate([
+        $user = User::firstOrCreate([
             'email' => config('app.admin.email'),
         ], [
             'name' => config('app.admin.name'),
             'password' => Hash::make(config('app.admin.password')),
         ]);
+
+        if ($user->wasRecentlyCreated) {
+            $this->info('Admin user created: ' . $user->email);
+        } else {
+            $this->info('Admin user already exists: ' . $user->email);
+        }
     }
 }

@@ -11,11 +11,13 @@ class ExchangeAccount extends Model
         'user_id',
         'api_key',
         'api_secret',
-        'exchange'
+        'exchange',
+        'is_testnet',
     ];
 
     protected $casts = [
         'api_secret' => 'encrypted',
+        'is_testnet' => 'boolean',
     ];
 
     public function user(): BelongsTo

@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Trade;
 use Illuminate\Console\Command;
 use App\Models\TradingBot;
-use App\Services\Exchanges\Bybit\BybitService;
+use App\Services\Exchanges\ExchangeServiceFactory;
 use App\Services\Trading\PositionManager;
 use App\Trading\Indicators\RsiIndicator;
 use App\Trading\Indicators\EmaIndicator;
@@ -41,7 +41,7 @@ class RunTradingBotsCommand extends Command
                 continue;
             }
 
-            $bybit = new BybitService($bot->exchangeAccount);
+            $exchangeService = ExchangeServiceFactory::create($bot->exchangeAccount);
             $positionManager = new PositionManager($bot);
 
             /*
@@ -50,7 +50,7 @@ class RunTradingBotsCommand extends Command
             |--------------------------------------------------------------------------
             */
             try {
-                $price = $bybit->getPrice($bot->symbol);
+                $price = $exchangeService->getPrice($bot->symbol);
             } catch (\Throwable $e) {
                 $this->error('Price error: ' . $e->getMessage());
                 continue;
@@ -63,19 +63,31 @@ class RunTradingBotsCommand extends Command
             | CANDLES
             |--------------------------------------------------------------------------
             */
-            $candles = $bybit->getCandles($bot->symbol, $bot->timeframe, 100);
+            try {
+                $candles = $exchangeService->getCandles($bot->symbol, $bot->timeframe, 100);
+            } catch (\Throwable $e) {
+                $this->error('Candles error: ' . $e->getMessage());
+                continue;
+            }
 
-            if (
-                empty($candles['result']['list']) ||
-                count($candles['result']['list']) < 20
-            ) {
+            // Обрабатываем разные форматы ответов (Bybit vs OKX)
+            $candleList = [];
+            if (isset($candles['result']['list'])) {
+                // Формат Bybit: result.list
+                $candleList = $candles['result']['list'];
+            } elseif (isset($candles['data'])) {
+                // Формат OKX: data
+                $candleList = $candles['data'];
+            }
+
+            if (empty($candleList) || count($candleList) < 20) {
                 $this->warn('Not enough candle data');
                 continue;
             }
 
             $closes = array_map(
                 fn ($candle) => (float) $candle[4],
-                array_reverse($candles['result']['list'])
+                array_reverse($candleList)
             );
 
             /*
@@ -124,12 +136,52 @@ class RunTradingBotsCommand extends Command
                     continue;
                 }
 
+                // Проверка минимальной суммы
+                $minNotional = config('trading.min_notional_usdt', 1);
+                if ($usdtAmount < $minNotional) {
+                    $this->warn("BUY skipped: amount {$usdtAmount} USDT is less than minimum {$minNotional} USDT");
+                    continue;
+                }
+
+                // Проверка баланса перед покупкой
+                if (config('trading.real_trading') && ! $bot->dry_run) {
+                    try {
+                        $balance = $exchangeService->getBalance('USDT');
+                        $this->line("USDT Balance: {$balance}");
+
+                        if ($balance < $usdtAmount) {
+                            $this->error("BUY skipped: insufficient balance. Required: {$usdtAmount} USDT, Available: {$balance} USDT");
+                            logger()->warning('Insufficient balance for BUY', [
+                                'bot_id' => $bot->id,
+                                'required' => $usdtAmount,
+                                'available' => $balance,
+                            ]);
+                            continue;
+                        }
+                    } catch (\Throwable $e) {
+                        $this->error('Balance check failed: ' . $e->getMessage());
+                        logger()->error('Balance check error', [
+                            'bot_id' => $bot->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                        continue;
+                    }
+                }
+
                 if (! config('trading.real_trading') || $bot->dry_run) {
                     $this->warn("DRY RUN BUY {$usdtAmount} USDT");
                     continue;
                 }
 
                 $this->warn("REAL BUY EXECUTING ({$usdtAmount} USDT)");
+
+                // Логирование начала сделки
+                logger()->info('BUY order initiated', [
+                    'bot_id' => $bot->id,
+                    'symbol' => $bot->symbol,
+                    'amount_usdt' => $usdtAmount,
+                    'price' => $price,
+                ]);
 
                 $trade = $bot->trades()->create([
                     'side'     => 'BUY',
@@ -140,7 +192,7 @@ class RunTradingBotsCommand extends Command
                 ]);
 
                 try {
-                    $response = $bybit->placeMarketBuy(
+                    $response = $exchangeService->placeMarketBuy(
                         $bot->symbol,
                         $usdtAmount
                     );
@@ -176,7 +228,7 @@ class RunTradingBotsCommand extends Command
                     usleep(500_000);
 
                     // 9.4 — проверяем статус
-                    $orderResponse = $bybit->getOrder(
+                    $orderResponse = $exchangeService->getOrder(
                         $bot->symbol,
                         $orderId
                     );
@@ -198,6 +250,15 @@ class RunTradingBotsCommand extends Command
                         ]);
 
                         $this->info('BUY ORDER FILLED');
+                        
+                        logger()->info('BUY order filled', [
+                            'bot_id' => $bot->id,
+                            'trade_id' => $trade->id,
+                            'order_id' => $orderId,
+                            'quantity' => $trade->quantity,
+                            'price' => $trade->price,
+                            'fee' => $trade->fee,
+                        ]);
                     } else {
                         $trade->update([
                             'status' => 'SENT',
@@ -205,6 +266,13 @@ class RunTradingBotsCommand extends Command
 
                         $this->info('BUY ORDER SENT');
                         $this->warn('Order status: ' . $order['orderStatus']);
+                        
+                        logger()->info('BUY order sent (not filled yet)', [
+                            'bot_id' => $bot->id,
+                            'trade_id' => $trade->id,
+                            'order_id' => $orderId,
+                            'status' => $order['orderStatus'],
+                        ]);
                     }
                 } catch (\Throwable $e) {
                     $trade->update([
@@ -264,7 +332,7 @@ class RunTradingBotsCommand extends Command
                 try {
                     $btcQty = (float) $buy->quantity;
 
-                    $response = $bybit->placeMarketSellBtc(
+                    $response = $exchangeService->placeMarketSellBtc(
                         symbol: $buy->symbol,
                         //qty: (string) $buy->quantity
                         btcQty: $btcQty

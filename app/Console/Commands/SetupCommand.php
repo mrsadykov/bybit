@@ -20,9 +20,15 @@ class SetupCommand extends Command
     {
         $this->info('Starting setup...');
 
-        $this->call(CreateAdminUserCommand::class);
-        $this->call(CreateBybitAccountCommand::class);
+        $adminResult = $this->call(CreateAdminUserCommand::class);
+        $accountResult = $this->call(CreateBybitAccountCommand::class);
 
-        $this->info('Setup completed!');
+        if ($adminResult === self::SUCCESS && $accountResult === self::SUCCESS) {
+            $this->info('Setup completed successfully!');
+            return self::SUCCESS;
+        }
+
+        $this->error('Setup completed with errors');
+        return self::FAILURE;
     }
 }

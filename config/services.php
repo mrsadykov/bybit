@@ -38,5 +38,13 @@ return [
     'bybit' => [
         'key' => env('BYBIT_API_KEY'),
         'secret' => env('BYBIT_API_SECRET'),
+        'testnet_key' => env('BYBIT_TESTNET_API_KEY'),
+        'testnet_secret' => env('BYBIT_TESTNET_API_SECRET'),
+    ],
+
+    'okx' => [
+        'key' => env('OKX_API_KEY'),
+        'secret' => env('OKX_API_SECRET'),
+        'passphrase' => env('OKX_API_PASSPHRASE'),
     ]
 ];

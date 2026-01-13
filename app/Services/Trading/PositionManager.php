@@ -12,13 +12,15 @@ class PositionManager
 
     public function getNetPosition(): float
     {
-        return (float) $this->bot->trades()
+        $result = $this->bot->trades()
             ->whereIn('status', ['PENDING', 'SENT', 'FILLED'])
             ->selectRaw("
                 SUM(CASE WHEN side = 'BUY' THEN quantity ELSE 0 END) -
-                SUM(CASE WHEN side = 'SELL' THEN quantity ELSE 0 END)
+                SUM(CASE WHEN side = 'SELL' THEN quantity ELSE 0 END) as net_position
             ")
-            ->value('aggregate');
+            ->value('net_position');
+
+        return (float) ($result ?? 0);
     }
 
     public function canBuy(): bool

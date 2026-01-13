@@ -14,7 +14,7 @@ class Trade extends Model
         'symbol',
         'price',
         'quantity',
-        'status',
+        'status', // PENDING, SENT, FILLED, PARTIALLY_FILLED, FAILED
         'exchange_response',
         'fee',
         'fee_currency',
@@ -37,7 +37,7 @@ class Trade extends Model
 
     public function bot(): BelongsTo
     {
-        return $this->belongsTo(TradingBot::class);
+        return $this->belongsTo(TradingBot::class, 'trading_bot_id', 'id');
     }
 
     /**

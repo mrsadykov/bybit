@@ -7,18 +7,16 @@ use App\Models\TradingBot;
 use App\Models\User;
 use Illuminate\Console\Command;
 
-class CreateBybitTradingBotCommand extends Command
+class CreateOkxTradingBotCommand extends Command
 {
-    protected $signature = 'bybit-bot:create
-        {symbol : BTCUSDT}
-        {timeframe : 5m}
-        {strategy : rsi_ema}
-        {position_size : 0.00006}'
-    ;
+    protected $signature = 'okx-bot:create
+        {symbol : Trading pair, e.g. BTCUSDT}
+        {timeframe : Timeframe, e.g. 5m}
+        {strategy : Strategy name, e.g. rsi_ema}
+        {position_size : Position size in USDT, e.g. 10}';
 
-    /**
-     * Execute the console command.
-     */
+    protected $description = 'Create a new OKX trading bot';
+
     public function handle()
     {
         $user = User::query()
@@ -27,8 +25,13 @@ class CreateBybitTradingBotCommand extends Command
 
         $account = ExchangeAccount::query()
             ->where('user_id', $user->id)
-            ->where('exchange', 'bybit')
-            ->firstOrFail();
+            ->where('exchange', 'okx')
+            ->first();
+
+        if (!$account) {
+            $this->error('OKX exchange account not found. Run: php artisan create-okx-account');
+            return self::FAILURE;
+        }
 
         $symbol = strtoupper($this->argument('symbol'));
         $timeframe = $this->argument('timeframe');
@@ -81,11 +84,18 @@ class CreateBybitTradingBotCommand extends Command
                 'is_active' => false
             ]);
 
-        $this->info("TradingBot: #{$bot->id} created.");
-        $this->info("Symbol: {$bot->symbol}.");
-        $this->info("Timeframe: {$bot->timeframe}.");
-        $this->info("Strategy: {$bot->strategy}.");
-        $this->info("Position size: {$bot->position_size} USDT.");
+        $this->info("✅ OKX TradingBot created: #{$bot->id}");
+        $this->line("   Symbol: {$bot->symbol}");
+        $this->line("   Timeframe: {$bot->timeframe}");
+        $this->line("   Strategy: {$bot->strategy}");
+        $this->line("   Position size: {$bot->position_size} USDT");
+        $this->line("   Status: Inactive (use tinker to activate)");
+        $this->line('');
+        $this->line("To activate the bot:");
+        $this->line("  php artisan tinker");
+        $this->line("  \$bot = \\App\\Models\\TradingBot::find({$bot->id});");
+        $this->line("  \$bot->is_active = true;");
+        $this->line("  \$bot->save();");
 
         return self::SUCCESS;
     }

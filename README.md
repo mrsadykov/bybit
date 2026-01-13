@@ -53,18 +53,108 @@ Trade / Order
 PENDING → SENT → FILLED / PARTIALLY_FILLED / FAILED
 
 ### Команды
-#### Если сломалась бд? данные не синхронизированы?
-```
-php artisan trades:recover-bybit --symbol=BTCUSDT
-```
 
-#### Если нужно синхронизировать статусы ордеров? (поставить на крон, должен запускаться каждую минуту)
-```
-php artisan orders:sync
-```
-```
-* * * * * php /path/to/project/artisan schedule:run >> /dev/null 2>&1
-```
+#### Настройка и установка
+
+**`php artisan setup`**
+- Выполняет начальную настройку проекта
+- Создает администратора и API аккаунты Bybit
+- Запускает `create-admin` и `create-bybit-account`
+
+**`php artisan create-admin`**
+- Создает административного пользователя
+- Использует данные из `config/app.php` (admin.email, admin.name, admin.password)
+
+**`php artisan create-bybit-account [--force] [--no-encrypt]`**
+- Создает или обновляет аккаунты Bybit (production и testnet)
+- Берет API ключи из `.env`:
+  - `BYBIT_API_KEY` / `BYBIT_API_SECRET` (production)
+  - `BYBIT_TESTNET_API_KEY` / `BYBIT_TESTNET_API_SECRET` (testnet)
+- `--force` - удаляет старые аккаунты перед созданием
+- `--no-encrypt` - создает без шифрования (только для отладки!)
+
+#### Торговые боты
+
+**`php artisan bybit-bot:create {symbol} {timeframe} {strategy} {position_size}`**
+- Создает новый торговый бот для Bybit
+- Параметры:
+  - `symbol` - торговая пара (например: BTCUSDT)
+  - `timeframe` - таймфрейм (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, M, W)
+  - `strategy` - стратегия (rsi_ema)
+  - `position_size` - размер позиции в USDT (например: 10)
+- Пример: `php artisan bybit-bot:create BTCUSDT 5m rsi_ema 10`
+
+**`php artisan okx-bot:create {symbol} {timeframe} {strategy} {position_size}`**
+- Создает новый торговый бот для OKX
+- Параметры:
+  - `symbol` - торговая пара (например: BTCUSDT)
+  - `timeframe` - таймфрейм (1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, M, W)
+  - `strategy` - стратегия (rsi_ema)
+  - `position_size` - размер позиции в USDT (например: 10)
+- Пример: `php artisan okx-bot:create BTCUSDT 5m rsi_ema 10`
+- Требует: OKX аккаунт должен быть создан (`php artisan create-okx-account`)
+
+**`php artisan bots:run`**
+- Запускает все активные торговые боты
+- Выполняет торговую логику: получение цены, свечей, индикаторов, сигналов
+- Размещает ордера BUY/SELL при соответствующих сигналах
+- Рекомендуется запускать через cron каждые 1-5 минут
+
+#### Синхронизация и восстановление
+
+**`php artisan orders:sync`**
+- Синхронизирует статусы ордеров с биржей
+- Обновляет статусы: PENDING → SENT → FILLED/PARTIALLY_FILLED/FAILED
+- Рассчитывает PnL при закрытии позиций
+- **Важно:** Должен запускаться через cron каждую минуту!
+- Пример cron: `* * * * * php /path/to/project/artisan orders:sync >> /dev/null 2>&1`
+
+**`php artisan trades:recover-bybit [--symbol={SYMBOL}] [--all]`**
+- Восстанавливает пропущенные сделки из истории Bybit
+- Используется если данные в БД не синхронизированы с биржей
+- `--symbol` - символ для восстановления (например: BTCUSDT)
+- `--all` - получить все ордера без фильтра по символу
+- Пример: `php artisan trades:recover-bybit --symbol=BTCUSDT`
+- ⚠️ **Ограничение**: Bybit API возвращает только ордера за последние 7 дней
+
+**`php artisan position:sync-from-balance [--bot=ID] [--force]`**
+- Синхронизирует позицию бота с реальным балансом на бирже
+- Полезно когда история ордеров недоступна (ордера старше 7 дней)
+- `--bot` - ID бота для синхронизации (необязательно)
+- `--force` - создать синтетическую сделку для синхронизации позиции
+- Пример: `php artisan position:sync-from-balance --bot=20 --force`
+
+#### Диагностика и проверка
+
+**`php artisan balance:check {coin} [--account=ID] [--testnet] [--production]`**
+- Проверяет баланс на аккаунте Bybit
+- Параметры:
+  - `coin` - монета для проверки (по умолчанию: USDT)
+  - `--account=ID` - ID конкретного аккаунта
+  - `--testnet` - использовать testnet аккаунт
+  - `--production` - использовать production аккаунт
+- Примеры:
+  - `php artisan balance:check USDT --account=20`
+  - `php artisan balance:check BTC --testnet`
+
+**`php artisan api:test [--account=ID]`**
+- Тестирует подключение к Bybit API
+- Проверяет:
+  - Расшифровку API ключей
+  - Публичный API (получение цены)
+  - Приватный API (получение баланса)
+- Показывает детальную диагностику при ошибках
+- Пример: `php artisan api:test --account=20`
+
+**`php artisan debug:signature [--account=ID]`**
+- Детальная отладка формирования подписи для API запросов
+- Показывает:
+  - Формирование payload
+  - Вычисление подписи
+  - Отправку тестового запроса
+  - Ответ от API
+- Используется для диагностики проблем с аутентификацией
+- Пример: `php artisan debug:signature --account=20`
 
 #### Запросы и в чем считаются
 
