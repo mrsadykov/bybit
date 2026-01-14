@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Trade;
 use App\Services\Exchanges\ExchangeServiceFactory;
+use App\Services\TelegramService;
 use Illuminate\Console\Command;
 
 class SyncOrdersCommand extends Command
@@ -167,6 +168,12 @@ class SyncOrdersCommand extends Command
                         $this->info("  ✅ Order {$orderStatus} - Updated!");
                         $this->line("     Quantity: {$executedQty} | Price: {$executedPrice} | Fee: {$fee} {$feeCurrency}");
                         $synced++;
+
+                        // Уведомление в Telegram о заполнении ордера
+                        if ($isFilled && $needsUpdate) {
+                            $telegram = new TelegramService();
+                            $telegram->notifyFilled($trade->side, $trade->symbol, $executedQty, $executedPrice, $fee);
+                        }
                     } else {
                         $this->line("  ✓ Order already synced (no changes needed)");
                     }
@@ -199,6 +206,19 @@ class SyncOrdersCommand extends Command
                             ]);
 
                             $this->info("  💰 Position closed! PnL: " . number_format($pnl, 8) . " USDT");
+
+                            // Уведомление в Telegram о закрытии позиции
+                            $telegram = new TelegramService();
+                            $pnlEmoji = $pnl >= 0 ? '📈' : '📉';
+                            $telegram->sendMessage(
+                                "{$pnlEmoji} <b>POSITION CLOSED</b>\n\n" .
+                                "Symbol: <b>{$trade->symbol}</b>\n" .
+                                "Buy Price: <b>\${$buy->price}</b>\n" .
+                                "Sell Price: <b>\${$trade->price}</b>\n" .
+                                "Quantity: <b>{$trade->quantity}</b>\n" .
+                                "PnL: <b>" . number_format($pnl, 8) . " USDT</b>\n" .
+                                "Time: " . now()->format('Y-m-d H:i:s')
+                            );
 
                             logger()->info('Position closed', [
                                 'buy_trade_id' => $buy->id,
