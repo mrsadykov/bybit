@@ -47,7 +47,6 @@ return [
         'secret' => env('OKX_API_SECRET'),
         'passphrase' => env('OKX_API_PASSPHRASE'),
     ],
-
     'telegram' => [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
         'chat_id' => env('TELEGRAM_CHAT_ID'),

@@ -30,6 +30,10 @@ class RunTradingBotsCommand extends Command
             return self::SUCCESS;
         }
 
+        // Уведомление о запуске команды
+        $telegram = new TelegramService();
+        $telegram->notifyBotRunStart($bots->count());
+
         foreach ($bots as $bot) {
 
             $this->line(str_repeat('-', 30));
@@ -478,7 +482,9 @@ class RunTradingBotsCommand extends Command
                 continue;
             }
 
+            // HOLD сигнал - No action taken
             $this->info('No action taken');
+            $telegram->notifyHold($bot->symbol, $price, $signal, $rsi, $ema);
         }
 
         $this->info('All bots processed.');

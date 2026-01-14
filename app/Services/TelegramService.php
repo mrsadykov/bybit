@@ -37,18 +37,65 @@ class TelegramService
                 return true;
             }
 
+            $errorData = $response->json();
             Log::error('Telegram API error', [
-                'response' => $response->json(),
+                'response' => $errorData,
+                'error_code' => $errorData['error_code'] ?? null,
+                'description' => $errorData['description'] ?? null,
             ]);
 
             return false;
         } catch (\Throwable $e) {
             Log::error('Telegram send error', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return false;
         }
+    }
+
+    /**
+     * Получить последнюю ошибку Telegram API из логов
+     */
+    public static function getLastError(): ?array
+    {
+        $logPath = storage_path('logs/laravel.log');
+        if (!file_exists($logPath)) {
+            return null;
+        }
+
+        // Читаем последние 50KB логов для поиска ошибки
+        $fileSize = filesize($logPath);
+        $readSize = min(50000, $fileSize);
+        $handle = fopen($logPath, 'r');
+        fseek($handle, -$readSize, SEEK_END);
+        $logContent = fread($handle, $readSize);
+        fclose($handle);
+
+        // Ищем последнюю ошибку Telegram API
+        if (preg_match('/Telegram API error.*?"response":\s*({[^}]*"error_code"[^}]*})/s', $logContent, $matches)) {
+            try {
+                $errorData = json_decode($matches[1], true);
+                if ($errorData && isset($errorData['error_code'])) {
+                    return $errorData;
+                }
+            } catch (\Exception $e) {
+                // Если не удалось распарсить JSON, попробуем извлечь вручную
+                if (preg_match('/"error_code":\s*(\d+)/', $matches[1], $codeMatch)) {
+                    $description = '';
+                    if (preg_match('/"description":\s*"([^"]+)"/', $matches[1], $descMatch)) {
+                        $description = $descMatch[1];
+                    }
+                    return [
+                        'error_code' => (int)$codeMatch[1],
+                        'description' => $description,
+                    ];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -121,6 +168,40 @@ class TelegramService
         
         if ($fee > 0) {
             $message .= "Fee: <b>{$fee}</b>\n";
+        }
+        
+        $message .= "Time: " . now()->format('Y-m-d H:i:s');
+
+        $this->sendMessage($message);
+    }
+
+    /**
+     * Отправить уведомление о запуске команды
+     */
+    public function notifyBotRunStart(int $botCount): void
+    {
+        $message = "🚀 <b>BOTS RUN STARTED</b>\n\n";
+        $message .= "Active bots: <b>{$botCount}</b>\n";
+        $message .= "Time: " . now()->format('Y-m-d H:i:s');
+
+        $this->sendMessage($message);
+    }
+
+    /**
+     * Отправить уведомление о HOLD сигнале (No action taken)
+     */
+    public function notifyHold(string $symbol, float $price, string $signal, float $rsi = null, float $ema = null): void
+    {
+        $message = "⏸️ <b>NO ACTION TAKEN</b>\n\n";
+        $message .= "Symbol: <b>{$symbol}</b>\n";
+        $message .= "Price: <b>\${$price}</b>\n";
+        $message .= "Signal: <b>{$signal}</b>\n";
+        
+        if ($rsi !== null) {
+            $message .= "RSI: <b>" . round($rsi, 2) . "</b>\n";
+        }
+        if ($ema !== null) {
+            $message .= "EMA: <b>" . round($ema, 2) . "</b>\n";
         }
         
         $message .= "Time: " . now()->format('Y-m-d H:i:s');
