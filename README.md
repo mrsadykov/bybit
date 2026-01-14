@@ -231,7 +231,7 @@ orders:sync
 ├─ close BUY
 └─ calc PnL
 
-
+Положительный PnL у BUY ордера означает прибыль.
 
 
 

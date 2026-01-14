@@ -52,4 +52,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(ExchangeAccount::class);
     }
+
+    public function tradingBots(): HasMany
+    {
+        return $this->hasMany(TradingBot::class);
+    }
 }

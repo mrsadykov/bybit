@@ -208,4 +208,37 @@ class TelegramService
 
         $this->sendMessage($message);
     }
+
+    /**
+     * Отправить ежедневную статистику
+     */
+    public function notifyDailyStats(array $stats): void
+    {
+        $date = $stats['date'] ?? now()->format('Y-m-d');
+        $totalPnL = $stats['total_pnl'] ?? 0;
+        $winningTrades = $stats['winning_trades'] ?? 0;
+        $losingTrades = $stats['losing_trades'] ?? 0;
+        $totalTrades = $stats['total_trades'] ?? 0;
+        $winRate = $stats['win_rate'] ?? 0;
+        $closedPositions = $stats['closed_positions'] ?? 0;
+        $openPositions = $stats['open_positions'] ?? 0;
+        $activeBots = $stats['active_bots'] ?? 0;
+
+        $pnlEmoji = $totalPnL >= 0 ? '📈' : '📉';
+        $pnlSign = $totalPnL >= 0 ? '+' : '';
+
+        $message = "📊 <b>DAILY STATISTICS</b>\n\n";
+        $message .= "Date: <b>{$date}</b>\n\n";
+        
+        $message .= "💰 <b>PnL: {$pnlSign}" . number_format($totalPnL, 8) . " USDT</b> {$pnlEmoji}\n";
+        $message .= "📊 Closed Positions: <b>{$closedPositions}</b>\n";
+        $message .= "📈 Winning Trades: <b>{$winningTrades}</b>\n";
+        $message .= "📉 Losing Trades: <b>{$losingTrades}</b>\n";
+        $message .= "🎯 Win Rate: <b>{$winRate}%</b>\n";
+        $message .= "📦 Total Trades: <b>{$totalTrades}</b>\n";
+        $message .= "🔓 Open Positions: <b>{$openPositions}</b>\n";
+        $message .= "🤖 Active Bots: <b>{$activeBots}</b>";
+
+        $this->sendMessage($message);
+    }
 }
