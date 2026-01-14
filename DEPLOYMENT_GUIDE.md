@@ -496,11 +496,18 @@ php artisan bots:run
 # Должно показать "DRY RUN BUY" или "DRY RUN SELL"
 # Если Telegram настроен, уведомления придут в Telegram
 
-# 5. Проверка логов (если файл не существует, он создастся автоматически)
+# 5. Проверка логов
 # Убедитесь, что директория существует и имеет правильные права
 sudo mkdir -p storage/logs
 sudo chown -R www-data:www-data storage/logs
 sudo chmod -R 775 storage/logs
+
+# Создание файла лога, если его нет (Laravel создаст автоматически, но для безопасности создаем заранее)
+sudo touch storage/logs/laravel.log
+sudo chown www-data:www-data storage/logs/laravel.log
+sudo chmod 664 storage/logs/laravel.log
+
+# Просмотр логов
 tail -f storage/logs/laravel.log
 
 # 6. Проверка синхронизации
@@ -566,8 +573,8 @@ php artisan telegram:test
 # Получение Chat ID (если забыли)
 php artisan telegram:chat-id
 
-# Просмотр логов
-tail -f storage/logs/laravel.log
+# Просмотр логов (если файл не существует, Laravel создаст его автоматически)
+tail -f storage/logs/laravel.log 2>/dev/null || echo "Лог файл еще не создан. Он будет создан при первой записи в лог."
 
 # Очистка кэша
 php artisan cache:clear
@@ -639,7 +646,13 @@ php artisan schedule:list  # Если используете Laravel Scheduler
 - Проверьте `is_active = 1` в БД
 - Проверьте `dry_run` режим
 - Проверьте баланс на бирже
-- Проверьте логи: `tail -f storage/logs/laravel.log`
+- Проверьте логи:
+  ```bash
+  # Убедитесь, что директория существует
+  mkdir -p storage/logs
+  # Просмотр логов
+  tail -f storage/logs/laravel.log 2>/dev/null || echo "Лог файл еще не создан"
+  ```
 
 ### Ордера не синхронизируются
 - Запустите `php artisan orders:sync` вручную

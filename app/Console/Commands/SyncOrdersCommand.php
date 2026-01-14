@@ -186,47 +186,96 @@ class SyncOrdersCommand extends Command
                         'price' => $executedPrice,
                     ]);
 
-                    // 2. если это SELL и полностью исполнен — закрываем BUY и считаем PnL
-                    if ($isFilled && $trade->side === 'SELL' && $trade->parent_id) {
+                    // 2. если это SELL и полностью исполнен — закрываем все связанные BUY позиции (FIFO)
+                    if ($isFilled && $trade->side === 'SELL' && $trade->bot) {
+                        // Если нет parent_id, связываем с первым открытым BUY
+                        if (!$trade->parent_id) {
+                            $firstBuy = Trade::where('trading_bot_id', $trade->bot->id)
+                                ->where('side', 'BUY')
+                                ->where('status', 'FILLED')
+                                ->whereNull('closed_at')
+                                ->orderBy('filled_at', 'asc')
+                                ->orderBy('id', 'asc')
+                                ->first();
 
-                        $buy = Trade::find($trade->parent_id);
+                            if ($firstBuy) {
+                                $trade->update(['parent_id' => $firstBuy->id]);
+                                $this->info("  🔗 SELL linked to BUY #{$firstBuy->id}");
+                            }
+                        }
 
-                        if ($buy && ! $buy->closed_at) {
+                        // Закрываем все BUY позиции, которые были проданы этим SELL (FIFO)
+                        $remainingSellQty = $trade->quantity;
+                        $closedPositions = 0;
+                        $totalPnL = 0;
+
+                        // Получаем все открытые BUY позиции (FIFO)
+                        $openBuys = Trade::where('trading_bot_id', $trade->bot->id)
+                            ->where('side', 'BUY')
+                            ->where('status', 'FILLED')
+                            ->whereNull('closed_at')
+                            ->orderBy('filled_at', 'asc')
+                            ->orderBy('id', 'asc')
+                            ->get();
+
+                        foreach ($openBuys as $buy) {
+                            if ($remainingSellQty <= 0) {
+                                break; // Весь SELL уже распределен
+                            }
+
+                            // Определяем, сколько из этого BUY было продано
+                            $buyQtySold = min($remainingSellQty, $buy->quantity);
+                            $remainingSellQty -= $buyQtySold;
+
+                            // Рассчитываем PnL для этой части
+                            // Пропорционально распределяем цену продажи и комиссию
+                            $sellPriceRatio = $buyQtySold / $trade->quantity;
+                            $sellValueForBuy = $trade->price * $buyQtySold;
+                            $sellFeeForBuy = ($trade->fee ?? 0) * $sellPriceRatio;
 
                             $pnl = (
-                                ($trade->price * $trade->quantity)
-                                - ($buy->price * $buy->quantity)
-                                - ($buy->fee ?? 0)
-                                - ($trade->fee ?? 0)
+                                $sellValueForBuy
+                                - ($buy->price * $buyQtySold)
+                                - (($buy->fee ?? 0) * ($buyQtySold / $buy->quantity))
+                                - $sellFeeForBuy
                             );
 
-                            $buy->update([
-                                'closed_at'    => now(),
-                                'realized_pnl' => $pnl,
-                            ]);
+                            // Если продано все количество BUY, закрываем позицию
+                            if ($buyQtySold >= $buy->quantity) {
+                                $buy->update([
+                                    'closed_at'    => $trade->filled_at ?? now(),
+                                    'realized_pnl' => $pnl,
+                                ]);
 
-                            $this->info("  💰 Position closed! PnL: " . number_format($pnl, 8) . " USDT");
+                                $closedPositions++;
+                                $totalPnL += $pnl;
 
-                            // Уведомление в Telegram о закрытии позиции
+                                $this->info("  💰 Position #{$buy->id} closed! PnL: " . number_format($pnl, 8) . " USDT");
+
+                                logger()->info('Position closed', [
+                                    'buy_trade_id' => $buy->id,
+                                    'sell_trade_id' => $trade->id,
+                                    'pnl' => $pnl,
+                                    'buy_price' => $buy->price,
+                                    'sell_price' => $trade->price,
+                                    'quantity_sold' => $buyQtySold,
+                                ]);
+                            }
+                        }
+
+                        // Отправляем уведомление в Telegram, если закрыты позиции
+                        if ($closedPositions > 0) {
                             $telegram = new TelegramService();
-                            $pnlEmoji = $pnl >= 0 ? '📈' : '📉';
+                            $pnlEmoji = $totalPnL >= 0 ? '📈' : '📉';
                             $telegram->sendMessage(
-                                "{$pnlEmoji} <b>POSITION CLOSED</b>\n\n" .
+                                "{$pnlEmoji} <b>POSITION(S) CLOSED</b>\n\n" .
                                 "Symbol: <b>{$trade->symbol}</b>\n" .
-                                "Buy Price: <b>\${$buy->price}</b>\n" .
+                                "Sell Quantity: <b>{$trade->quantity}</b>\n" .
                                 "Sell Price: <b>\${$trade->price}</b>\n" .
-                                "Quantity: <b>{$trade->quantity}</b>\n" .
-                                "PnL: <b>" . number_format($pnl, 8) . " USDT</b>\n" .
+                                "Closed Positions: <b>{$closedPositions}</b>\n" .
+                                "Total PnL: <b>" . number_format($totalPnL, 8) . " USDT</b>\n" .
                                 "Time: " . now()->format('Y-m-d H:i:s')
                             );
-
-                            logger()->info('Position closed', [
-                                'buy_trade_id' => $buy->id,
-                                'sell_trade_id' => $trade->id,
-                                'pnl' => $pnl,
-                                'buy_price' => $buy->price,
-                                'sell_price' => $trade->price,
-                            ]);
                         }
                     }
 
