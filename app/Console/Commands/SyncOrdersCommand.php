@@ -14,7 +14,7 @@ class SyncOrdersCommand extends Command
 
     public function handle(): int
     {
-        $this->info('Starting sync trades ...');
+        $this->info('Начало синхронизации сделок (Starting sync trades)...');
         $this->line('');
 
         // Синхронизируем все трейды с order_id, не только PENDING/SENT
@@ -25,11 +25,11 @@ class SyncOrdersCommand extends Command
             ->get();
 
         if ($trades->isEmpty()) {
-            $this->info('No trades to sync.');
+            $this->info('Нет сделок для синхронизации (No trades to sync).');
             return self::SUCCESS;
         }
 
-        $this->info("Found {$trades->count()} trade(s) to sync:");
+        $this->info("Найдено сделок для синхронизации (Found trades to sync): {$trades->count()}");
         $this->line('');
 
         $synced = 0;
@@ -38,19 +38,19 @@ class SyncOrdersCommand extends Command
         $skipped = 0;
 
         foreach ($trades as $trade) {
-            $this->line("Trade #{$trade->id} ({$trade->side}) - Order ID: {$trade->order_id}");
-            $this->line("  Status: {$trade->status} | Symbol: {$trade->symbol}");
+            $this->line("Сделка #{$trade->id} (Trade #{$trade->id}) ({$trade->side}) - ID ордера (Order ID): {$trade->order_id}");
+            $this->line("  Статус (Status): {$trade->status} | Символ (Symbol): {$trade->symbol}");
             
             // Проверяем наличие bot и exchangeAccount
             if (!$trade->bot) {
-                $this->warn("  ⚠️  Skipped: No bot attached");
+                $this->warn("  ⚠️  Пропущено: Бот не привязан (Skipped: No bot attached)");
                 $skipped++;
                 $this->line('');
                 continue;
             }
             
             if (!$trade->bot->exchangeAccount) {
-                $this->warn("  ⚠️  Skipped: No exchange account attached");
+                $this->warn("  ⚠️  Пропущено: Аккаунт биржи не привязан (Skipped: No exchange account attached)");
                 $skipped++;
                 $this->line('');
                 continue;
@@ -60,7 +60,7 @@ class SyncOrdersCommand extends Command
                 $exchangeService = ExchangeServiceFactory::create($trade->bot->exchangeAccount);
                 $exchange = $trade->bot->exchangeAccount->exchange;
                 
-                $this->line("  Exchange: " . strtoupper($exchange));
+                $this->line("  Биржа (Exchange): " . strtoupper($exchange));
 
                 // Сначала пытаемся получить текущий ордер
                 $response = $exchangeService->getOrder(
@@ -75,7 +75,7 @@ class SyncOrdersCommand extends Command
                     
                     // Если не нашли — идём в history (только для Bybit)
                     if (! $order && method_exists($exchangeService, 'getOrderHistory')) {
-                        $this->line("  Order not found in active orders, checking history...");
+                        $this->line("  Ордер не найден в активных, проверяем историю (Order not found in active orders, checking history)...");
                         $historyResponse = $exchangeService->getOrderHistory(
                             $trade->symbol,
                             $trade->order_id
@@ -87,7 +87,7 @@ class SyncOrdersCommand extends Command
                     
                     // Для OKX заполненные ордера могут быть только в истории
                     if (! $order && method_exists($exchangeService, 'getOrderHistory')) {
-                        $this->line("  Order not found in active orders, checking history...");
+                        $this->line("  Ордер не найден в активных, проверяем историю (Order not found in active orders, checking history)...");
                         $historyResponse = $exchangeService->getOrderHistory(
                             $trade->symbol,
                             $trade->order_id
@@ -97,7 +97,7 @@ class SyncOrdersCommand extends Command
                 }
 
                 if (! $order) {
-                    $this->warn("  ❌ Order not found on exchange");
+                    $this->warn("  ❌ Ордер не найден на бирже (Order not found on exchange)");
                     $notFound++;
                     logger()->warning('Order not found in sync', [
                         'trade_id' => $trade->id,
@@ -137,7 +137,7 @@ class SyncOrdersCommand extends Command
                     ? ($order['orderStatus'] ?? 'Unknown')
                     : ($order['state'] ?? 'Unknown');
                 
-                $this->line("  Order status on exchange: {$orderStatus}");
+                $this->line("  Статус ордера на бирже (Order status on exchange): {$orderStatus}");
 
                 // Обработка Filled и PartiallyFilled ордеров
                 if ($isFilled || $isPartiallyFilled) {
@@ -165,8 +165,8 @@ class SyncOrdersCommand extends Command
                             'filled_at'    => $isFilled ? ($trade->filled_at ?? now()) : null,
                         ]);
 
-                        $this->info("  ✅ Order {$orderStatus} - Updated!");
-                        $this->line("     Quantity: {$executedQty} | Price: {$executedPrice} | Fee: {$fee} {$feeCurrency}");
+                        $this->info("  ✅ Ордер {$orderStatus} - Обновлен! (Order {$orderStatus} - Updated!)");
+                        $this->line("     Количество (Quantity): {$executedQty} | Цена (Price): {$executedPrice} | Комиссия (Fee): {$fee} {$feeCurrency}");
                         $synced++;
 
                         // Уведомление в Telegram о заполнении ордера
@@ -175,7 +175,7 @@ class SyncOrdersCommand extends Command
                             $telegram->notifyFilled($trade->side, $trade->symbol, $executedQty, $executedPrice, $fee);
                         }
                     } else {
-                        $this->line("  ✓ Order already synced (no changes needed)");
+                        $this->line("  ✓ Ордер уже синхронизирован (Order already synced - no changes needed)");
                     }
 
                     logger()->info('Order execution update', [
@@ -200,7 +200,7 @@ class SyncOrdersCommand extends Command
 
                             if ($firstBuy) {
                                 $trade->update(['parent_id' => $firstBuy->id]);
-                                $this->info("  🔗 SELL linked to BUY #{$firstBuy->id}");
+                                $this->info("  🔗 SELL связан с BUY #{$firstBuy->id} (SELL linked to BUY #{$firstBuy->id})");
                             }
                         }
 
@@ -250,7 +250,7 @@ class SyncOrdersCommand extends Command
                                 $closedPositions++;
                                 $totalPnL += $pnl;
 
-                                $this->info("  💰 Position #{$buy->id} closed! PnL: " . number_format($pnl, 8) . " USDT");
+                                $this->info("  💰 Позиция #{$buy->id} закрыта! (Position #{$buy->id} closed!) PnL: " . number_format($pnl, 8) . " USDT");
 
                                 logger()->info('Position closed', [
                                     'buy_trade_id' => $buy->id,
@@ -268,13 +268,13 @@ class SyncOrdersCommand extends Command
                             $telegram = new TelegramService();
                             $pnlEmoji = $totalPnL >= 0 ? '📈' : '📉';
                             $telegram->sendMessage(
-                                "{$pnlEmoji} <b>POSITION(S) CLOSED</b>\n\n" .
-                                "Symbol: <b>{$trade->symbol}</b>\n" .
-                                "Sell Quantity: <b>{$trade->quantity}</b>\n" .
-                                "Sell Price: <b>\${$trade->price}</b>\n" .
-                                "Closed Positions: <b>{$closedPositions}</b>\n" .
-                                "Total PnL: <b>" . number_format($totalPnL, 8) . " USDT</b>\n" .
-                                "Time: " . now()->format('Y-m-d H:i:s')
+                                "{$pnlEmoji} <b>ПОЗИЦИЯ(И) ЗАКРЫТА(Ы) (POSITION(S) CLOSED)</b>\n\n" .
+                                "Символ (Symbol): <b>{$trade->symbol}</b>\n" .
+                                "Количество продажи (Sell Quantity): <b>{$trade->quantity}</b>\n" .
+                                "Цена продажи (Sell Price): <b>\${$trade->price}</b>\n" .
+                                "Закрытых позиций (Closed Positions): <b>{$closedPositions}</b>\n" .
+                                "Общий PnL (Total PnL): <b>" . number_format($totalPnL, 8) . " USDT</b>\n" .
+                                "Время (Time): " . now()->format('Y-m-d H:i:s')
                             );
                         }
                     }
@@ -299,17 +299,17 @@ class SyncOrdersCommand extends Command
                     $trade->update([
                         'status' => 'FAILED',
                     ]);
-                    $this->warn("  ⚠️  Order {$orderStatus} - Marked as FAILED");
+                    $this->warn("  ⚠️  Ордер {$orderStatus} - Помечен как FAILED (Order {$orderStatus} - Marked as FAILED)");
                     $synced++;
                 } else {
-                    $this->line("  ℹ️  Order still {$orderStatus} - No update needed");
+                    $this->line("  ℹ️  Ордер все еще {$orderStatus} - Обновление не требуется (Order still {$orderStatus} - No update needed)");
                 }
 
                 $this->line('');
 
             } catch (\Throwable $e) {
                 $errors++;
-                $this->error("  ❌ Error: " . $e->getMessage());
+                $this->error("  ❌ Ошибка (Error): " . $e->getMessage());
                 $this->line('');
                 logger()->error('Order sync error', [
                     'trade_id' => $trade->id,
@@ -319,13 +319,13 @@ class SyncOrdersCommand extends Command
         }
 
         $this->line('');
-        $this->info('Sync summary:');
-        $this->line("  ✅ Synced: {$synced}");
-        $this->line("  ❌ Not found: {$notFound}");
-        $this->line("  ⚠️  Errors: {$errors}");
-        $this->line("  ⏭️  Skipped: {$skipped}");
+        $this->info('Итоги синхронизации (Sync summary):');
+        $this->line("  ✅ Синхронизировано (Synced): {$synced}");
+        $this->line("  ❌ Не найдено (Not found): {$notFound}");
+        $this->line("  ⚠️  Ошибок (Errors): {$errors}");
+        $this->line("  ⏭️  Пропущено (Skipped): {$skipped}");
         $this->line('');
-        $this->info('Trades sync processed.');
+        $this->info('Синхронизация сделок завершена (Trades sync processed).');
         
         return self::SUCCESS;
     }

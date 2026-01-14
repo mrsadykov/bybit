@@ -17,7 +17,7 @@ class SendDailyStatsCommand extends Command
         $dateInput = $this->option('date');
         $date = $dateInput ? \Carbon\Carbon::parse($dateInput)->format('Y-m-d') : now()->format('Y-m-d');
 
-        $this->info("Calculating daily statistics for {$date}...");
+        $this->info("Расчет ежедневной статистики за {$date} (Calculating daily statistics for {$date})...");
         $this->line('');
 
         // Получаем всех пользователей с активными ботами
@@ -26,7 +26,7 @@ class SendDailyStatsCommand extends Command
         })->get();
 
         if ($users->isEmpty()) {
-            $this->warn('No users with active bots found.');
+            $this->warn('Пользователей с активными ботами не найдено (No users with active bots found).');
             return self::SUCCESS;
         }
 
@@ -36,14 +36,14 @@ class SendDailyStatsCommand extends Command
             $stats = $this->calculateDailyStats($user->id, $date);
 
             if ($stats['total_trades'] === 0 && $stats['closed_positions'] === 0) {
-                $this->line("User #{$user->id} ({$user->email}): No trades or closed positions for {$date}");
+                $this->line("Пользователь #{$user->id} ({$user->email}): Нет сделок или закрытых позиций за {$date} (User #{$user->id} ({$user->email}): No trades or closed positions for {$date})");
                 continue;
             }
 
             $telegram = new TelegramService();
             $telegram->notifyDailyStats($stats);
 
-            $this->info("✅ Statistics sent to user #{$user->id} ({$user->email})");
+            $this->info("✅ Статистика отправлена пользователю #{$user->id} ({$user->email}) (Statistics sent to user #{$user->id} ({$user->email}))");
             $sentCount++;
 
             // Небольшая задержка между отправками, чтобы не перегружать Telegram API
@@ -53,7 +53,7 @@ class SendDailyStatsCommand extends Command
         }
 
         $this->line('');
-        $this->info("Daily statistics sent to {$sentCount} user(s).");
+        $this->info("Ежедневная статистика отправлена {$sentCount} пользователю(ам) (Daily statistics sent to {$sentCount} user(s)).");
 
         return self::SUCCESS;
     }

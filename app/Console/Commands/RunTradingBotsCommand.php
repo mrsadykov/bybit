@@ -19,14 +19,14 @@ class RunTradingBotsCommand extends Command
 
     public function handle(): int
     {
-        $this->info('Starting trading bots...');
+        $this->info('Запуск торговых ботов (Starting trading bots)...');
 
         $bots = TradingBot::with('exchangeAccount')
             ->where('is_active', true)
             ->get();
 
         if ($bots->isEmpty()) {
-            $this->warn('No active bots found');
+            $this->warn('Активных ботов не найдено (No active bots found)');
             return self::SUCCESS;
         }
 
@@ -37,12 +37,12 @@ class RunTradingBotsCommand extends Command
         foreach ($bots as $bot) {
 
             $this->line(str_repeat('-', 30));
-            $this->info("Bot #{$bot->id}");
-            $this->line("Symbol: {$bot->symbol}");
-            $this->line("Position size (USDT): {$bot->position_size}");
+            $this->info("Бот #{$bot->id} (Bot #{$bot->id})");
+            $this->line("Символ (Symbol): {$bot->symbol}");
+            $this->line("Размер позиции (Position size) (USDT): {$bot->position_size}");
 
             if (! $bot->exchangeAccount) {
-                $this->error('No exchange account attached');
+                $this->error('Аккаунт биржи не привязан (No exchange account attached)');
                 continue;
             }
 
@@ -58,11 +58,11 @@ class RunTradingBotsCommand extends Command
             try {
                 $price = $exchangeService->getPrice($bot->symbol);
             } catch (\Throwable $e) {
-                $this->error('Price error: ' . $e->getMessage());
+                $this->error('Ошибка получения цены (Price error): ' . $e->getMessage());
                 continue;
             }
 
-            $this->line("Current price: {$price}");
+            $this->line("Текущая цена (Current price): {$price}");
 
             /*
             |--------------------------------------------------------------------------
@@ -72,7 +72,7 @@ class RunTradingBotsCommand extends Command
             try {
                 $candles = $exchangeService->getCandles($bot->symbol, $bot->timeframe, 100);
             } catch (\Throwable $e) {
-                $this->error('Candles error: ' . $e->getMessage());
+                $this->error('Ошибка получения свечей (Candles error): ' . $e->getMessage());
                 continue;
             }
 
@@ -87,7 +87,7 @@ class RunTradingBotsCommand extends Command
             }
 
             if (empty($candleList) || count($candleList) < 20) {
-                $this->warn('Not enough candle data');
+                $this->warn('Недостаточно данных свечей (Not enough candle data)');
                 continue;
             }
 
@@ -113,7 +113,7 @@ class RunTradingBotsCommand extends Command
             |--------------------------------------------------------------------------
             */
             $signal = RsiEmaStrategy::decide($closes);
-            $this->info("Signal: {$signal}");
+            $this->info("Сигнал (Signal): {$signal}");
 
             /*
             |--------------------------------------------------------------------------
@@ -121,7 +121,7 @@ class RunTradingBotsCommand extends Command
             |--------------------------------------------------------------------------
             */
             $netPosition = $positionManager->getNetPosition();
-            $this->line('Net position (BTC): ' . $netPosition);
+            $this->line('Чистая позиция (Net position) (BTC): ' . $netPosition);
 
             /*
             |--------------------------------------------------------------------------
@@ -131,24 +131,24 @@ class RunTradingBotsCommand extends Command
             if ($signal === 'BUY') {
 
                 if (! $positionManager->canBuy()) {
-                    $this->warn('BUY skipped: position already open');
-                    $telegram->notifySkip('BUY', 'Position already open');
+                    $this->warn('BUY пропущен: позиция уже открыта (BUY skipped: position already open)');
+                    $telegram->notifySkip('BUY', 'Позиция уже открыта (Position already open)');
                     continue;
                 }
 
                 $usdtAmount = (float) $bot->position_size;
 
                 if ($usdtAmount <= 0) {
-                    $this->warn('Invalid position size');
-                    $telegram->notifySkip('BUY', 'Invalid position size');
+                    $this->warn('Неверный размер позиции (Invalid position size)');
+                    $telegram->notifySkip('BUY', 'Неверный размер позиции (Invalid position size)');
                     continue;
                 }
 
                 // Проверка минимальной суммы
                 $minNotional = config('trading.min_notional_usdt', 1);
                 if ($usdtAmount < $minNotional) {
-                    $this->warn("BUY skipped: amount {$usdtAmount} USDT is less than minimum {$minNotional} USDT");
-                    $telegram->notifySkip('BUY', "Amount {$usdtAmount} USDT is less than minimum {$minNotional} USDT");
+                    $this->warn("BUY пропущен: сумма {$usdtAmount} USDT меньше минимума {$minNotional} USDT (BUY skipped: amount {$usdtAmount} USDT is less than minimum {$minNotional} USDT)");
+                    $telegram->notifySkip('BUY', "Сумма {$usdtAmount} USDT меньше минимума {$minNotional} USDT (Amount {$usdtAmount} USDT is less than minimum {$minNotional} USDT)");
                     continue;
                 }
 
@@ -156,36 +156,36 @@ class RunTradingBotsCommand extends Command
                 if (config('trading.real_trading') && ! $bot->dry_run) {
                     try {
                         $balance = $exchangeService->getBalance('USDT');
-                        $this->line("USDT Balance: {$balance}");
+                        $this->line("Баланс USDT (USDT Balance): {$balance}");
 
                         if ($balance < $usdtAmount) {
-                            $this->error("BUY skipped: insufficient balance. Required: {$usdtAmount} USDT, Available: {$balance} USDT");
+                            $this->error("BUY пропущен: недостаточно баланса. Требуется: {$usdtAmount} USDT, Доступно: {$balance} USDT (BUY skipped: insufficient balance. Required: {$usdtAmount} USDT, Available: {$balance} USDT)");
                             logger()->warning('Insufficient balance for BUY', [
                                 'bot_id' => $bot->id,
                                 'required' => $usdtAmount,
                                 'available' => $balance,
                             ]);
-                            $telegram->notifySkip('BUY', "Insufficient balance. Required: {$usdtAmount} USDT, Available: {$balance} USDT");
+                            $telegram->notifySkip('BUY', "Недостаточно баланса. Требуется: {$usdtAmount} USDT, Доступно: {$balance} USDT (Insufficient balance. Required: {$usdtAmount} USDT, Available: {$balance} USDT)");
                             continue;
                         }
                     } catch (\Throwable $e) {
-                        $this->error('Balance check failed: ' . $e->getMessage());
+                        $this->error('Ошибка проверки баланса (Balance check failed): ' . $e->getMessage());
                         logger()->error('Balance check error', [
                             'bot_id' => $bot->id,
                             'error' => $e->getMessage(),
                         ]);
-                        $telegram->notifyError('BUY Balance Check', $e->getMessage());
+                        $telegram->notifyError('Проверка баланса BUY (BUY Balance Check)', $e->getMessage());
                         continue;
                     }
                 }
 
                 if (! config('trading.real_trading') || $bot->dry_run) {
-                    $this->warn("DRY RUN BUY {$usdtAmount} USDT");
+                    $this->warn("ТЕСТОВЫЙ РЕЖИМ BUY (DRY RUN BUY) {$usdtAmount} USDT");
                     $telegram->notifyBuy($bot->symbol, $usdtAmount, $price, true);
                     continue;
                 }
 
-                $this->warn("REAL BUY EXECUTING ({$usdtAmount} USDT)");
+                $this->warn("РЕАЛЬНАЯ ПОКУПКА ВЫПОЛНЯЕТСЯ (REAL BUY EXECUTING) ({$usdtAmount} USDT)");
 
                 // Уведомление в Telegram
                 $telegram->notifyBuy($bot->symbol, $usdtAmount, $price, false);
@@ -221,7 +221,7 @@ class RunTradingBotsCommand extends Command
                                 'status' => 'FAILED',
                                 'exchange_response' => $response,
                             ]);
-                            $this->error('Bybit error: ' . json_encode($response));
+                            $this->error('Ошибка Bybit (Bybit error): ' . json_encode($response));
                             continue;
                         }
                         $orderId = $response['result']['orderId'] ?? null;
@@ -232,12 +232,12 @@ class RunTradingBotsCommand extends Command
                                 'status' => 'FAILED',
                                 'exchange_response' => $response,
                             ]);
-                            $this->error('OKX error: ' . json_encode($response));
+                            $this->error('Ошибка OKX (OKX error): ' . json_encode($response));
                             continue;
                         }
                         $orderId = $response['data'][0]['ordId'] ?? null;
                     } else {
-                        $this->error('Unsupported exchange: ' . $exchange);
+                        $this->error('Неподдерживаемая биржа (Unsupported exchange): ' . $exchange);
                         continue;
                     }
 
@@ -245,7 +245,7 @@ class RunTradingBotsCommand extends Command
                         $trade->update([
                             'status' => 'FAILED',
                         ]);
-                        $this->error("{$exchange} did not return orderId");
+                        $this->error("{$exchange} не вернул orderId ({$exchange} did not return orderId)");
                         continue;
                     }
 
@@ -273,7 +273,7 @@ class RunTradingBotsCommand extends Command
                     }
 
                     if (! $order) {
-                        $this->warn('Order not found yet');
+                        $this->warn('Ордер еще не найден (Order not found yet)');
                         continue;
                     }
 
@@ -304,7 +304,7 @@ class RunTradingBotsCommand extends Command
                             'filled_at'    => now(),
                         ]);
 
-                        $this->info('BUY ORDER FILLED');
+                        $this->info('ОРДЕР BUY ИСПОЛНЕН (BUY ORDER FILLED)');
                         
                         // Уведомление в Telegram
                         $telegram->notifyFilled('BUY', $bot->symbol, $quantity, $trade->price, $fee);
@@ -326,8 +326,8 @@ class RunTradingBotsCommand extends Command
                             'status' => 'SENT',
                         ]);
 
-                        $this->info('BUY ORDER SENT');
-                        $this->warn('Order status: ' . $orderStatus);
+                        $this->info('ОРДЕР BUY ОТПРАВЛЕН (BUY ORDER SENT)');
+                        $this->warn('Статус ордера (Order status): ' . $orderStatus);
                         
                         logger()->info('BUY order sent (not filled yet)', [
                             'bot_id' => $bot->id,
@@ -337,14 +337,14 @@ class RunTradingBotsCommand extends Command
                         ]);
                     }
                 } catch (\Throwable $e) {
-                    $telegram->notifyError('BUY Order', $e->getMessage());
+                    $telegram->notifyError('Ордер BUY (BUY Order)', $e->getMessage());
                     
                     $trade->update([
                         'status' => 'FAILED',
                         'exchange_response' => $e->getMessage(),
                     ]);
 
-                    $this->error('BUY exception: ' . $e->getMessage());
+                    $this->error('Исключение BUY (BUY exception): ' . $e->getMessage());
                     continue;
                 }
 
@@ -368,8 +368,8 @@ class RunTradingBotsCommand extends Command
                     ->first();
 
                 if (! $buy) {
-                    $this->line('No open BUY position — skip SELL');
-                    $telegram->notifySkip('SELL', 'No open BUY position');
+                    $this->line('Нет открытой BUY позиции — пропуск SELL (No open BUY position — skip SELL)');
+                    $telegram->notifySkip('SELL', 'Нет открытой BUY позиции (No open BUY position)');
                     continue;
                 }
 
@@ -381,8 +381,8 @@ class RunTradingBotsCommand extends Command
                     ->exists();
 
                 if ($hasPendingSell) {
-                    $this->line('SELL already in progress — skip');
-                    $telegram->notifySkip('SELL', 'SELL already in progress');
+                    $this->line('SELL уже выполняется — пропуск (SELL already in progress — skip)');
+                    $telegram->notifySkip('SELL', 'SELL уже выполняется (SELL already in progress)');
                     continue;
                 }
 
@@ -390,29 +390,29 @@ class RunTradingBotsCommand extends Command
                 try {
                     $baseCoin = str_replace('USDT', '', $bot->symbol);
                     $btcQty = $exchangeService->getBalance($baseCoin);
-                    $this->line("Available {$baseCoin} balance: {$btcQty}");
+                    $this->line("Доступный баланс {$baseCoin} (Available {$baseCoin} balance): {$btcQty}");
                 } catch (\Throwable $e) {
-                    $this->error('Balance check failed: ' . $e->getMessage());
-                    $telegram->notifyError('SELL Balance Check', $e->getMessage());
+                    $this->error('Ошибка проверки баланса (Balance check failed): ' . $e->getMessage());
+                    $telegram->notifyError('Проверка баланса SELL (SELL Balance Check)', $e->getMessage());
                     // Fallback: используем netPosition из БД
                     $btcQty = $positionManager->getNetPosition();
-                    $this->warn("Using net position from DB: {$btcQty}");
+                    $this->warn("Используем чистую позицию из БД (Using net position from DB): {$btcQty}");
                 }
 
                 if ($btcQty <= 0) {
-                    $this->line('No balance available — skip SELL');
-                    $telegram->notifySkip('SELL', 'No balance available');
+                    $this->line('Баланс недоступен — пропуск SELL (No balance available — skip SELL)');
+                    $telegram->notifySkip('SELL', 'Баланс недоступен (No balance available)');
                     continue;
                 }
 
                 // Проверка dry_run для SELL
                 if (! config('trading.real_trading') || $bot->dry_run) {
-                    $this->warn("DRY RUN SELL {$btcQty} {$baseCoin}");
+                    $this->warn("ТЕСТОВЫЙ РЕЖИМ SELL (DRY RUN SELL) {$btcQty} {$baseCoin}");
                     $telegram->notifySell($bot->symbol, $btcQty, $price, true);
                     continue;
                 }
 
-                $this->warn("REAL SELL EXECUTING ({$btcQty} {$baseCoin})");
+                $this->warn("РЕАЛЬНАЯ ПРОДАЖА ВЫПОЛНЯЕТСЯ (REAL SELL EXECUTING) ({$btcQty} {$baseCoin})");
 
                 // Уведомление в Telegram
                 $telegram->notifySell($bot->symbol, $btcQty, $price, false);
@@ -462,7 +462,7 @@ class RunTradingBotsCommand extends Command
                     usleep(500_000);
 
                 } catch (\Throwable $e) {
-                    $telegram->notifyError('SELL Order', $e->getMessage());
+                    $telegram->notifyError('Ордер SELL (SELL Order)', $e->getMessage());
 
                     $sell->update([
                         'status'            => 'FAILED',
@@ -471,7 +471,7 @@ class RunTradingBotsCommand extends Command
                         ],
                     ]);
 
-                    $this->error('SELL exception: ' . $e->getMessage());
+                    $this->error('Исключение SELL (SELL exception): ' . $e->getMessage());
 
                     logger()->error('SELL failed', [
                         'bot_id' => $bot->id,
@@ -483,11 +483,11 @@ class RunTradingBotsCommand extends Command
             }
 
             // HOLD сигнал - No action taken
-            $this->info('No action taken');
+            $this->info('Действий не предпринято (No action taken)');
             $telegram->notifyHold($bot->symbol, $price, $signal, $rsi, $ema);
         }
 
-        $this->info('All bots processed.');
+        $this->info('Все боты обработаны (All bots processed).');
         return self::SUCCESS;
     }
 }
