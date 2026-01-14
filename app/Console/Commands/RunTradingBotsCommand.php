@@ -72,12 +72,12 @@ class RunTradingBotsCommand extends Command
 
             // Обрабатываем разные форматы ответов (Bybit vs OKX)
             $candleList = [];
-            if (isset($candles['result']['list'])) {
-                // Формат Bybit: result.list
-                $candleList = $candles['result']['list'];
-            } elseif (isset($candles['data'])) {
-                // Формат OKX: data
-                $candleList = $candles['data'];
+            $exchange = $bot->exchangeAccount->exchange;
+            
+            if ($exchange === 'bybit') {
+                $candleList = $candles['result']['list'] ?? [];
+            } elseif ($exchange === 'okx') {
+                $candleList = $candles['data'] ?? [];
             }
 
             if (empty($candleList) || count($candleList) < 20) {
@@ -197,24 +197,40 @@ class RunTradingBotsCommand extends Command
                         $usdtAmount
                     );
 
-                    if (($response['retCode'] ?? 1) !== 0) {
-                        $trade->update([
-                            'status' => 'FAILED',
-                            'exchange_response' => $response,
-                        ]);
-
-                        $this->error('Bybit error: ' . json_encode($response));
+                    $exchange = $bot->exchangeAccount->exchange;
+                    
+                    // Обрабатываем разные форматы ответов
+                    if ($exchange === 'bybit') {
+                        if (($response['retCode'] ?? 1) !== 0) {
+                            $trade->update([
+                                'status' => 'FAILED',
+                                'exchange_response' => $response,
+                            ]);
+                            $this->error('Bybit error: ' . json_encode($response));
+                            continue;
+                        }
+                        $orderId = $response['result']['orderId'] ?? null;
+                    } elseif ($exchange === 'okx') {
+                        // OKX уже проверяет code в privateRequest, но на всякий случай
+                        if (($response['code'] ?? '0') !== '0') {
+                            $trade->update([
+                                'status' => 'FAILED',
+                                'exchange_response' => $response,
+                            ]);
+                            $this->error('OKX error: ' . json_encode($response));
+                            continue;
+                        }
+                        $orderId = $response['data'][0]['ordId'] ?? null;
+                    } else {
+                        $this->error('Unsupported exchange: ' . $exchange);
                         continue;
                     }
-
-                    $orderId = $response['result']['orderId'] ?? null;
 
                     if (! $orderId) {
                         $trade->update([
                             'status' => 'FAILED',
                         ]);
-
-                        $this->error('Bybit did not return orderId');
+                        $this->error("{$exchange} did not return orderId");
                         continue;
                     }
 
@@ -224,7 +240,7 @@ class RunTradingBotsCommand extends Command
                         'status'   => 'SENT',
                     ]);
 
-                    // даём Bybit исполнить market-ордер
+                    // даём бирже исполнить market-ордер
                     usleep(500_000);
 
                     // 9.4 — проверяем статус
@@ -233,18 +249,42 @@ class RunTradingBotsCommand extends Command
                         $orderId
                     );
 
-                    $order = $orderResponse['result']['list'][0] ?? null;
+                    // Обрабатываем разные форматы ответов
+                    $order = null;
+                    if ($exchange === 'bybit') {
+                        $order = $orderResponse['result']['list'][0] ?? null;
+                    } elseif ($exchange === 'okx') {
+                        $order = $orderResponse['data'][0] ?? null;
+                    }
 
                     if (! $order) {
                         $this->warn('Order not found yet');
                         continue;
                     }
 
-                    if ($order['orderStatus'] === 'Filled') {
+                    // Обрабатываем статус ордера
+                    $isFilled = false;
+                    $quantity = 0;
+                    $fee = 0;
+                    $feeCurrency = null;
+                    
+                    if ($exchange === 'bybit') {
+                        $isFilled = ($order['orderStatus'] ?? '') === 'Filled';
+                        $quantity = (float) ($order['cumExecQty'] ?? 0);
+                        $fee = (float) ($order['cumExecFee'] ?? 0);
+                        $feeCurrency = $order['feeCurrency'] ?? null;
+                    } elseif ($exchange === 'okx') {
+                        $isFilled = ($order['state'] ?? '') === 'filled';
+                        $quantity = (float) ($order['accFillSz'] ?? 0);
+                        $fee = (float) ($order['fee'] ?? 0);
+                        $feeCurrency = $order['feeCcy'] ?? null;
+                    }
+
+                    if ($isFilled) {
                         $trade->update([
-                            'quantity'     => (float) $order['cumExecQty'],
-                            'fee'          => (float) ($order['cumExecFee'] ?? 0),
-                            'fee_currency' => $order['feeCurrency'] ?? null,
+                            'quantity'     => $quantity,
+                            'fee'          => $fee,
+                            'fee_currency' => $feeCurrency,
                             'status'       => 'FILLED',
                             'filled_at'    => now(),
                         ]);
@@ -260,18 +300,22 @@ class RunTradingBotsCommand extends Command
                             'fee' => $trade->fee,
                         ]);
                     } else {
+                        $orderStatus = $exchange === 'bybit' 
+                            ? ($order['orderStatus'] ?? 'Unknown')
+                            : ($order['state'] ?? 'Unknown');
+                        
                         $trade->update([
                             'status' => 'SENT',
                         ]);
 
                         $this->info('BUY ORDER SENT');
-                        $this->warn('Order status: ' . $order['orderStatus']);
+                        $this->warn('Order status: ' . $orderStatus);
                         
                         logger()->info('BUY order sent (not filled yet)', [
                             'bot_id' => $bot->id,
                             'trade_id' => $trade->id,
                             'order_id' => $orderId,
-                            'status' => $order['orderStatus'],
+                            'status' => $orderStatus,
                         ]);
                     }
                 } catch (\Throwable $e) {
@@ -296,7 +340,7 @@ class RunTradingBotsCommand extends Command
                 //$this->warn('SELL logic not implemented yet');
                 //continue;
 
-                // Найти открытый BUY
+                // Найти первый открытый BUY для parent_id (для связи)
                 $buy = Trade::where('trading_bot_id', $bot->id)
                     ->where('side', 'BUY')
                     ->where('status', 'FILLED')
@@ -309,8 +353,10 @@ class RunTradingBotsCommand extends Command
                 }
 
                 // Защита от двойного SELL
-                $hasPendingSell = Trade::where('parent_id', $buy->id)
+                $hasPendingSell = Trade::where('trading_bot_id', $bot->id)
+                    ->where('side', 'SELL')
                     ->whereIn('status', ['PENDING', 'SENT'])
+                    ->whereNull('closed_at')
                     ->exists();
 
                 if ($hasPendingSell) {
@@ -318,29 +364,69 @@ class RunTradingBotsCommand extends Command
                     continue;
                 }
 
-                // Создаём SELL в БД (ДО API)
+                // Получаем реальный баланс BTC с биржи (более точный)
+                try {
+                    $baseCoin = str_replace('USDT', '', $bot->symbol);
+                    $btcQty = $exchangeService->getBalance($baseCoin);
+                    $this->line("Available {$baseCoin} balance: {$btcQty}");
+                } catch (\Throwable $e) {
+                    $this->error('Balance check failed: ' . $e->getMessage());
+                    // Fallback: используем netPosition из БД
+                    $btcQty = $positionManager->getNetPosition();
+                    $this->warn("Using net position from DB: {$btcQty}");
+                }
+
+                if ($btcQty <= 0) {
+                    $this->line('No balance available — skip SELL');
+                    continue;
+                }
+
+                // Проверка dry_run для SELL
+                if (! config('trading.real_trading') || $bot->dry_run) {
+                    $this->warn("DRY RUN SELL {$btcQty} {$baseCoin}");
+                    continue;
+                }
+
+                $this->warn("REAL SELL EXECUTING ({$btcQty} {$baseCoin})");
+
+                // Логирование начала продажи
+                logger()->info('SELL order initiated', [
+                    'bot_id' => $bot->id,
+                    'symbol' => $bot->symbol,
+                    'quantity' => $btcQty,
+                    'buy_trade_id' => $buy->id,
+                ]);
+
+                // Создаём SELL в БД (ДО API) с реальным балансом
                 $sell = Trade::create([
                     'trading_bot_id' => $bot->id,
                     'parent_id'      => $buy->id,
                     'side'           => 'SELL',
                     'symbol'         => $buy->symbol,
                     'price'          => 0, // обновится после FILLED
-                    'quantity'       => $buy->quantity,
+                    'quantity'       => $btcQty,
                     'status'         => 'PENDING',
                 ]);
 
                 try {
-                    $btcQty = (float) $buy->quantity;
+                    $exchange = $bot->exchangeAccount->exchange;
 
                     $response = $exchangeService->placeMarketSellBtc(
                         symbol: $buy->symbol,
-                        //qty: (string) $buy->quantity
                         btcQty: $btcQty
                     );
 
+                    // Обрабатываем разные форматы ответов
+                    $orderId = null;
+                    if ($exchange === 'bybit') {
+                        $orderId = $response['result']['orderId'] ?? null;
+                    } elseif ($exchange === 'okx') {
+                        $orderId = $response['data'][0]['ordId'] ?? null;
+                    }
+
                     $sell->update([
-                        'order_id'          => $response['result']['orderId'] ?? null,
-                        'status'            => 'SENT',
+                        'order_id'          => $orderId,
+                        'status'            => $orderId ? 'SENT' : 'FAILED',
                         'exchange_response' => $response,
                     ]);
 
@@ -356,11 +442,15 @@ class RunTradingBotsCommand extends Command
                         ],
                     ]);
 
+                    $this->error('SELL exception: ' . $e->getMessage());
+
                     logger()->error('SELL failed', [
                         'bot_id' => $bot->id,
                         'error'  => $e->getMessage(),
                     ]);
                 }
+
+                continue;
             }
 
             $this->info('No action taken');

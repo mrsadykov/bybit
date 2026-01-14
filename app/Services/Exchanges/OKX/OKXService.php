@@ -114,8 +114,14 @@ class OKXService
 
         // OKX использует code вместо retCode
         if (($json['code'] ?? '0') !== '0') {
+            $code = $json['code'] ?? 'Unknown';
             $msg = $json['msg'] ?? 'Unknown error';
-            throw new RuntimeException("OKX API error: {$msg}");
+            $errorData = $json['data'] ?? null;
+            $errorDetails = $code . ': ' . $msg;
+            if ($errorData) {
+                $errorDetails .= ' | Data: ' . json_encode($errorData);
+            }
+            throw new RuntimeException("OKX API error: {$errorDetails}");
         }
 
         return $json;
@@ -176,6 +182,127 @@ class OKXService
 
         // OKX использует availBal (available balance)
         return (float) ($details['availBal'] ?? 0);
+    }
+
+    /* ================= ORDERS ================= */
+
+    /**
+     * Market Buy для Spot (покупка на сумму в USDT)
+     * 
+     * @param string $symbol Торговая пара (например: BTCUSDT)
+     * @param float $usdtAmount Сумма в USDT для покупки
+     * @return array Ответ от OKX API
+     */
+    public function placeMarketBuy(string $symbol, float $usdtAmount): array
+    {
+        $okxSymbol = $this->formatSymbol($symbol);
+        
+        // OKX API v5: для Market Buy на сумму используем tgtCcy: "quote_ccy"
+        $response = $this->privatePost('/trade/order', [
+            'instId' => $okxSymbol,
+            'tdMode' => 'cash', // cash для spot
+            'side' => 'buy',
+            'ordType' => 'market',
+            'sz' => (string) $usdtAmount, // Размер в quote currency (USDT)
+            'tgtCcy' => 'quote_ccy', // Покупаем на сумму в quote currency
+        ]);
+
+        return $response;
+    }
+
+    /**
+     * Market Sell для Spot (продажа BTC)
+     * 
+     * @param string $symbol Торговая пара (например: BTCUSDT)
+     * @param float $btcQty Количество BTC для продажи
+     * @return array Ответ от OKX API
+     */
+    public function placeMarketSellBtc(string $symbol, float $btcQty): array
+    {
+        $okxSymbol = $this->formatSymbol($symbol);
+        
+        // OKX API v5: для Market Sell используем sz (размер) в base currency
+        $response = $this->privatePost('/trade/order', [
+            'instId' => $okxSymbol,
+            'tdMode' => 'cash', // cash для spot
+            'side' => 'sell',
+            'ordType' => 'market',
+            'sz' => (string) $btcQty, // Количество в base currency (BTC)
+            'tgtCcy' => 'base_ccy', // Продаем в base currency
+        ]);
+
+        return $response;
+    }
+
+    /**
+     * Получить информацию об ордере
+     * 
+     * @param string $symbol Торговая пара (например: BTCUSDT)
+     * @param string $orderId ID ордера
+     * @return array Ответ от OKX API
+     */
+    public function getOrder(string $symbol, string $orderId): array
+    {
+        $okxSymbol = $this->formatSymbol($symbol);
+        
+        $response = $this->privateGet('/trade/order', [
+            'instId' => $okxSymbol,
+            'ordId' => $orderId,
+        ]);
+
+        return $response;
+    }
+
+    /**
+     * Получить историю ордеров (для заполненных ордеров)
+     * 
+     * @param string $symbol Торговая пара (например: BTCUSDT)
+     * @param string|null $orderId ID ордера (опционально)
+     * @return array Ответ от OKX API
+     */
+    public function getOrderHistory(string $symbol, ?string $orderId = null): array
+    {
+        $okxSymbol = $this->formatSymbol($symbol);
+        
+        $params = [
+            'instType' => 'SPOT', // Обязательный параметр для OKX
+            'instId' => $okxSymbol,
+            'state' => 'filled', // Только заполненные ордера
+        ];
+        
+        if ($orderId) {
+            $params['ordId'] = $orderId;
+        }
+        
+        $response = $this->privateGet('/trade/orders-history', $params);
+
+        return $response;
+    }
+
+    /**
+     * Получить историю всех ордеров (для восстановления)
+     * 
+     * @param string|null $symbol Торговая пара (опционально, null = все символы)
+     * @param int $limit Лимит ордеров (максимум 100)
+     * @return array Ответ от OKX API
+     */
+    public function getOrdersHistory(?string $symbol = null, int $limit = 100): array
+    {
+        $params = [
+            'instType' => 'SPOT', // Обязательный параметр для OKX
+            'limit' => (string) min($limit, 100), // OKX максимум 100
+        ];
+        
+        if ($symbol) {
+            $params['instId'] = $this->formatSymbol($symbol);
+        }
+        
+        // Используем orders-history для получения всех ордеров (включая заполненные и отмененные)
+        // Если нужны только заполненные, можно добавить 'state' => 'filled'
+        // Но для восстановления нужны все ордера
+        $response = $this->privateGet('/trade/orders-history', $params);
+
+        return $response;
     }
 
     /* ================= HELPER METHODS ================= */

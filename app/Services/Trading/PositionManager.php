@@ -14,6 +14,7 @@ class PositionManager
     {
         $result = $this->bot->trades()
             ->whereIn('status', ['PENDING', 'SENT', 'FILLED'])
+            ->whereNull('closed_at') // Исключаем закрытые позиции
             ->selectRaw("
                 SUM(CASE WHEN side = 'BUY' THEN quantity ELSE 0 END) -
                 SUM(CASE WHEN side = 'SELL' THEN quantity ELSE 0 END) as net_position

@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Trade;
-use App\Services\Exchanges\Bybit\BybitService;
+use App\Services\Exchanges\ExchangeServiceFactory;
 use Illuminate\Console\Command;
 
 class SyncOrdersCommand extends Command
@@ -14,65 +14,173 @@ class SyncOrdersCommand extends Command
     public function handle(): int
     {
         $this->info('Starting sync trades ...');
+        $this->line('');
 
-        $trades = Trade::whereIn('status', ['PENDING', 'SENT', 'PARTIALLY_FILLED'])
-            ->whereNotNull('order_id')
+        // Синхронизируем все трейды с order_id, не только PENDING/SENT
+        // Это позволит обновить статусы уже заполненных ордеров
+        $trades = Trade::whereNotNull('order_id')
+            ->whereIn('status', ['PENDING', 'SENT', 'PARTIALLY_FILLED', 'FILLED'])
             ->with('bot.exchangeAccount')
             ->get();
 
-        foreach ($trades as $trade) {
-            try {
-                $bybit = new BybitService($trade->bot->exchangeAccount);
+        if ($trades->isEmpty()) {
+            $this->info('No trades to sync.');
+            return self::SUCCESS;
+        }
 
-                $response = $bybit->getOrder(
+        $this->info("Found {$trades->count()} trade(s) to sync:");
+        $this->line('');
+
+        $synced = 0;
+        $notFound = 0;
+        $errors = 0;
+        $skipped = 0;
+
+        foreach ($trades as $trade) {
+            $this->line("Trade #{$trade->id} ({$trade->side}) - Order ID: {$trade->order_id}");
+            $this->line("  Status: {$trade->status} | Symbol: {$trade->symbol}");
+            
+            // Проверяем наличие bot и exchangeAccount
+            if (!$trade->bot) {
+                $this->warn("  ⚠️  Skipped: No bot attached");
+                $skipped++;
+                $this->line('');
+                continue;
+            }
+            
+            if (!$trade->bot->exchangeAccount) {
+                $this->warn("  ⚠️  Skipped: No exchange account attached");
+                $skipped++;
+                $this->line('');
+                continue;
+            }
+            
+            try {
+                $exchangeService = ExchangeServiceFactory::create($trade->bot->exchangeAccount);
+                $exchange = $trade->bot->exchangeAccount->exchange;
+                
+                $this->line("  Exchange: " . strtoupper($exchange));
+
+                // Сначала пытаемся получить текущий ордер
+                $response = $exchangeService->getOrder(
                     $trade->symbol,
                     $trade->order_id
                 );
 
-                $order = $response['result']['list'][0] ?? null;
-
-                // 2. если не нашли — идём в history
-                if (! $order) {
-                    $historyResponse = $bybit->getOrderHistory(
-                        $trade->symbol,
-                        $trade->order_id
-                    );
-
-                    $order = $historyResponse['result']['list'][0] ?? null;
+                // Обрабатываем разные форматы ответов
+                $order = null;
+                if ($exchange === 'bybit') {
+                    $order = $response['result']['list'][0] ?? null;
+                    
+                    // Если не нашли — идём в history (только для Bybit)
+                    if (! $order && method_exists($exchangeService, 'getOrderHistory')) {
+                        $this->line("  Order not found in active orders, checking history...");
+                        $historyResponse = $exchangeService->getOrderHistory(
+                            $trade->symbol,
+                            $trade->order_id
+                        );
+                        $order = $historyResponse['result']['list'][0] ?? null;
+                    }
+                } elseif ($exchange === 'okx') {
+                    $order = $response['data'][0] ?? null;
+                    
+                    // Для OKX заполненные ордера могут быть только в истории
+                    if (! $order && method_exists($exchangeService, 'getOrderHistory')) {
+                        $this->line("  Order not found in active orders, checking history...");
+                        $historyResponse = $exchangeService->getOrderHistory(
+                            $trade->symbol,
+                            $trade->order_id
+                        );
+                        $order = $historyResponse['data'][0] ?? null;
+                    }
                 }
 
                 if (! $order) {
-                    // реально ещё не появился
+                    $this->warn("  ❌ Order not found on exchange");
+                    $notFound++;
+                    logger()->warning('Order not found in sync', [
+                        'trade_id' => $trade->id,
+                        'order_id' => $trade->order_id,
+                        'exchange' => $exchange,
+                        'response_keys' => array_keys($response),
+                    ]);
+                    $this->line('');
                     continue;
                 }
 
-                // Обработка Filled и PartiallyFilled ордеров
-                if (in_array($order['orderStatus'], ['Filled', 'PartiallyFilled'], true)) {
-                    
-                    $isFullyFilled = $order['orderStatus'] === 'Filled';
-                    $executedQty = (float) $order['cumExecQty'];
+                // Обрабатываем статус ордера (разные форматы для разных бирж)
+                $isFilled = false;
+                $isPartiallyFilled = false;
+                $executedQty = 0;
+                $executedPrice = 0;
+                $fee = 0;
+                $feeCurrency = null;
+                
+                if ($exchange === 'bybit') {
+                    $isFilled = ($order['orderStatus'] ?? '') === 'Filled';
+                    $isPartiallyFilled = ($order['orderStatus'] ?? '') === 'PartiallyFilled';
+                    $executedQty = (float) ($order['cumExecQty'] ?? 0);
                     $executedPrice = (float) ($order['avgPrice'] ?? $trade->price);
+                    $fee = (float) ($order['cumExecFee'] ?? 0);
+                    $feeCurrency = $order['feeCurrency'] ?? null;
+                } elseif ($exchange === 'okx') {
+                    $isFilled = ($order['state'] ?? '') === 'filled';
+                    $isPartiallyFilled = ($order['state'] ?? '') === 'partially_filled';
+                    $executedQty = (float) ($order['accFillSz'] ?? 0);
+                    $executedPrice = (float) ($order['avgPx'] ?? $order['px'] ?? $trade->price);
+                    $fee = (float) ($order['fee'] ?? 0);
+                    $feeCurrency = $order['feeCcy'] ?? null;
+                }
 
-                    // 1. обновляем текущий трейд
-                    $trade->update([
-                        'price'        => $executedPrice,
-                        'quantity'     => $executedQty,
-                        'fee'          => (float) ($order['cumExecFee'] ?? 0),
-                        'fee_currency' => $order['feeCurrency'] ?? null,
-                        'status'       => $isFullyFilled ? 'FILLED' : 'PARTIALLY_FILLED',
-                        'filled_at'    => $isFullyFilled ? now() : null,
-                    ]);
+                $orderStatus = $exchange === 'bybit' 
+                    ? ($order['orderStatus'] ?? 'Unknown')
+                    : ($order['state'] ?? 'Unknown');
+                
+                $this->line("  Order status on exchange: {$orderStatus}");
+
+                // Обработка Filled и PartiallyFilled ордеров
+                if ($isFilled || $isPartiallyFilled) {
+                    
+                    // Проверяем, нужно ли обновление
+                    $needsUpdate = false;
+                    if ($trade->status !== ($isFilled ? 'FILLED' : 'PARTIALLY_FILLED')) {
+                        $needsUpdate = true;
+                    }
+                    if (abs($trade->quantity - $executedQty) > 0.00000001) {
+                        $needsUpdate = true;
+                    }
+                    if (abs($trade->price - $executedPrice) > 0.01) {
+                        $needsUpdate = true;
+                    }
+                    
+                    if ($needsUpdate || !$trade->filled_at) {
+                        // 1. обновляем текущий трейд
+                        $trade->update([
+                            'price'        => $executedPrice,
+                            'quantity'     => $executedQty,
+                            'fee'          => $fee,
+                            'fee_currency' => $feeCurrency,
+                            'status'       => $isFilled ? 'FILLED' : 'PARTIALLY_FILLED',
+                            'filled_at'    => $isFilled ? ($trade->filled_at ?? now()) : null,
+                        ]);
+
+                        $this->info("  ✅ Order {$orderStatus} - Updated!");
+                        $this->line("     Quantity: {$executedQty} | Price: {$executedPrice} | Fee: {$fee} {$feeCurrency}");
+                        $synced++;
+                    } else {
+                        $this->line("  ✓ Order already synced (no changes needed)");
+                    }
 
                     logger()->info('Order execution update', [
                         'trade_id' => $trade->id,
                         'order_id' => $trade->order_id,
-                        'status' => $order['orderStatus'],
+                        'status' => $orderStatus,
                         'executed_qty' => $executedQty,
                         'price' => $executedPrice,
                     ]);
 
                     // 2. если это SELL и полностью исполнен — закрываем BUY и считаем PnL
-                    if ($isFullyFilled && $trade->side === 'SELL' && $trade->parent_id) {
+                    if ($isFilled && $trade->side === 'SELL' && $trade->parent_id) {
 
                         $buy = Trade::find($trade->parent_id);
 
@@ -90,6 +198,8 @@ class SyncOrdersCommand extends Command
                                 'realized_pnl' => $pnl,
                             ]);
 
+                            $this->info("  💰 Position closed! PnL: " . number_format($pnl, 8) . " USDT");
+
                             logger()->info('Position closed', [
                                 'buy_trade_id' => $buy->id,
                                 'sell_trade_id' => $trade->id,
@@ -100,16 +210,38 @@ class SyncOrdersCommand extends Command
                         }
                     }
 
+                    $this->line('');
                     continue;
                 }
 
-                if (in_array($order['orderStatus'], ['Cancelled', 'Rejected'], true)) {
+                // Обработка отмененных/отклоненных ордеров
+                $isCancelled = false;
+                $isRejected = false;
+                
+                if ($exchange === 'bybit') {
+                    $isCancelled = in_array($order['orderStatus'] ?? '', ['Cancelled', 'Rejected'], true);
+                    $isRejected = ($order['orderStatus'] ?? '') === 'Rejected';
+                } elseif ($exchange === 'okx') {
+                    $isCancelled = in_array($order['state'] ?? '', ['canceled', 'cancelled'], true);
+                    $isRejected = in_array($order['state'] ?? '', ['rejected', 'failed'], true);
+                }
+
+                if ($isCancelled || $isRejected) {
                     $trade->update([
                         'status' => 'FAILED',
                     ]);
+                    $this->warn("  ⚠️  Order {$orderStatus} - Marked as FAILED");
+                    $synced++;
+                } else {
+                    $this->line("  ℹ️  Order still {$orderStatus} - No update needed");
                 }
 
+                $this->line('');
+
             } catch (\Throwable $e) {
+                $errors++;
+                $this->error("  ❌ Error: " . $e->getMessage());
+                $this->line('');
                 logger()->error('Order sync error', [
                     'trade_id' => $trade->id,
                     'error'    => $e->getMessage(),
@@ -117,7 +249,15 @@ class SyncOrdersCommand extends Command
             }
         }
 
+        $this->line('');
+        $this->info('Sync summary:');
+        $this->line("  ✅ Synced: {$synced}");
+        $this->line("  ❌ Not found: {$notFound}");
+        $this->line("  ⚠️  Errors: {$errors}");
+        $this->line("  ⏭️  Skipped: {$skipped}");
+        $this->line('');
         $this->info('Trades sync processed.');
+        
         return self::SUCCESS;
     }
 }
