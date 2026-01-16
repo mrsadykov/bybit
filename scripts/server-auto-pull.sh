@@ -7,7 +7,7 @@
 set -e
 
 # Путь к проекту на сервере
-DEPLOY_PATH="/var/www/bybit"
+DEPLOY_PATH="/var/www/trading-bot"
 
 # Переход в директорию проекта
 cd "${DEPLOY_PATH}" || exit 1
