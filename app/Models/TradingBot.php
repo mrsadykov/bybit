@@ -15,6 +15,8 @@ class TradingBot extends Model
         'timeframe',
         'strategy',
         'position_size',
+        'stop_loss_percent',
+        'take_profit_percent',
         'is_active',
         'last_trade_at',
         'dry_run',
@@ -26,6 +28,8 @@ class TradingBot extends Model
         'last_trade_at' => 'datetime',
         // 8 знаков после запятой
         'position_size' => 'decimal:8',
+        'stop_loss_percent' => 'decimal:2',
+        'take_profit_percent' => 'decimal:2',
         'dry_run' => 'boolean'
     ];
 

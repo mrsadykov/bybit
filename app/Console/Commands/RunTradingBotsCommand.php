@@ -125,6 +125,115 @@ class RunTradingBotsCommand extends Command
 
             /*
             |--------------------------------------------------------------------------
+            | STOP-LOSS / TAKE-PROFIT CHECK
+            |--------------------------------------------------------------------------
+            */
+            if ($netPosition > 0 && ($bot->stop_loss_percent || $bot->take_profit_percent)) {
+                // Получаем все открытые BUY позиции
+                $openBuys = Trade::where('trading_bot_id', $bot->id)
+                    ->where('side', 'BUY')
+                    ->where('status', 'FILLED')
+                    ->whereNull('closed_at')
+                    ->get();
+
+                foreach ($openBuys as $buyTrade) {
+                    $buyPrice = (float) $buyTrade->price;
+                    $priceChange = (($price - $buyPrice) / $buyPrice) * 100;
+
+                    $shouldSell = false;
+                    $reason = '';
+
+                    // Проверка Stop-Loss
+                    if ($bot->stop_loss_percent && $priceChange <= -abs($bot->stop_loss_percent)) {
+                        $shouldSell = true;
+                        $reason = "STOP-LOSS ({$bot->stop_loss_percent}%)";
+                        $this->warn("🔴 STOP-LOSS сработал! ({$reason}) - Цена упала на " . number_format(abs($priceChange), 2) . "%");
+                    }
+
+                    // Проверка Take-Profit
+                    if ($bot->take_profit_percent && $priceChange >= $bot->take_profit_percent) {
+                        $shouldSell = true;
+                        $reason = "TAKE-PROFIT ({$bot->take_profit_percent}%)";
+                        $this->warn("🟢 TAKE-PROFIT сработал! ({$reason}) - Цена выросла на " . number_format($priceChange, 2) . "%");
+                    }
+
+                    if ($shouldSell) {
+                        // Получаем реальный баланс для продажи
+                        try {
+                            $baseCoin = str_replace('USDT', '', $bot->symbol);
+                            $btcQty = $exchangeService->getBalance($baseCoin);
+                            
+                            if ($btcQty > 0) {
+                                // Проверка dry_run
+                                if (!config('trading.real_trading') || $bot->dry_run) {
+                                    $this->warn("ТЕСТОВЫЙ РЕЖИМ SELL ({$reason}) (DRY RUN SELL) {$btcQty} {$baseCoin}");
+                                    $telegram->notifySell($bot->symbol, $btcQty, $price, true);
+                                } else {
+                                    $this->warn("РЕАЛЬНАЯ ПРОДАЖА ({$reason}) ВЫПОЛНЯЕТСЯ (REAL SELL EXECUTING) ({$btcQty} {$baseCoin})");
+                                    $telegram->notifySell($bot->symbol, $btcQty, $price, false);
+
+                                    // Создаем SELL ордер
+                                    $sell = Trade::create([
+                                        'trading_bot_id' => $bot->id,
+                                        'parent_id' => $buyTrade->id,
+                                        'side' => 'SELL',
+                                        'symbol' => $bot->symbol,
+                                        'price' => 0,
+                                        'quantity' => $btcQty,
+                                        'status' => 'PENDING',
+                                    ]);
+
+                                    try {
+                                        $response = $exchangeService->placeMarketSellBtc(
+                                            symbol: $bot->symbol,
+                                            btcQty: $btcQty
+                                        );
+
+                                        $exchange = $bot->exchangeAccount->exchange;
+                                        $orderId = null;
+                                        if ($exchange === 'bybit') {
+                                            $orderId = $response['result']['orderId'] ?? null;
+                                        } elseif ($exchange === 'okx') {
+                                            $orderId = $response['data'][0]['ordId'] ?? null;
+                                        }
+
+                                        $sell->update([
+                                            'order_id' => $orderId,
+                                            'status' => $orderId ? 'SENT' : 'FAILED',
+                                            'exchange_response' => $response,
+                                        ]);
+
+                                        logger()->info("SELL order ({$reason}) initiated", [
+                                            'bot_id' => $bot->id,
+                                            'buy_trade_id' => $buyTrade->id,
+                                            'sell_trade_id' => $sell->id,
+                                            'reason' => $reason,
+                                            'price_change' => $priceChange,
+                                        ]);
+                                    } catch (\Throwable $e) {
+                                        $telegram->notifyError("SELL ({$reason})", $e->getMessage());
+                                        $sell->update([
+                                            'status' => 'FAILED',
+                                            'exchange_response' => ['error' => $e->getMessage()],
+                                        ]);
+                                        $this->error("SELL ({$reason}) exception: " . $e->getMessage());
+                                    }
+                                }
+                                break; // Закрываем только одну позицию за раз
+                            }
+                        } catch (\Throwable $e) {
+                            $this->error("Ошибка проверки баланса для {$reason}: " . $e->getMessage());
+                            logger()->error("Balance check error for {$reason}", [
+                                'bot_id' => $bot->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            /*
+            |--------------------------------------------------------------------------
             | BUY
             |--------------------------------------------------------------------------
             */
@@ -216,11 +325,11 @@ class RunTradingBotsCommand extends Command
                     
                     // Обрабатываем разные форматы ответов
                     if ($exchange === 'bybit') {
-                        if (($response['retCode'] ?? 1) !== 0) {
-                            $trade->update([
-                                'status' => 'FAILED',
-                                'exchange_response' => $response,
-                            ]);
+                    if (($response['retCode'] ?? 1) !== 0) {
+                        $trade->update([
+                            'status' => 'FAILED',
+                            'exchange_response' => $response,
+                        ]);
                             $this->error('Ошибка Bybit (Bybit error): ' . json_encode($response));
                             continue;
                         }
@@ -267,7 +376,7 @@ class RunTradingBotsCommand extends Command
                     // Обрабатываем разные форматы ответов
                     $order = null;
                     if ($exchange === 'bybit') {
-                        $order = $orderResponse['result']['list'][0] ?? null;
+                    $order = $orderResponse['result']['list'][0] ?? null;
                     } elseif ($exchange === 'okx') {
                         $order = $orderResponse['data'][0] ?? null;
                     }
