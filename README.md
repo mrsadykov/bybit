@@ -233,8 +233,48 @@ orders:sync
 
 Положительный PnL у BUY ордера означает прибыль.
 
+#### Деплой и автоматизация
 
-ttt
+**`./deploy.sh`**
+- Скрипт автоматического деплоя на production сервер
+- Отправляет изменения в Git и обновляет код на сервере
+- Использование: `./deploy.sh`
+
+**Автоматический деплой через Cron:**
+- Скрипт `scripts/server-auto-pull.sh` проверяет обновления каждые 5 минут
+- Автоматически обновляет код, зависимости, миграции, кэш
+- Логи: `storage/logs/auto-pull.log`
+- Настройка: см. `AUTO_DEPLOY_SETUP.md` и `CRON_FIX.md`
+
+**Telegram уведомления:**
+- `php artisan telegram:test` - тест Telegram уведомлений
+- `php artisan telegram:chat-id` - получение Chat ID
+- `php artisan telegram:daily-stats` - ежедневная статистика
+- Настройка: см. `TELEGRAM_SETUP.md`
+
+#### Бэктестинг
+
+**`php artisan strategy:backtest {symbol} [--options]`**
+- Бэктестинг торговой стратегии на исторических данных
+- Параметры:
+  - `symbol` - торговая пара (например: BTCUSDT)
+  - `--timeframe=5m` - таймфрейм (5m, 15m, 1h, 1D)
+  - `--exchange=okx` - биржа (okx или bybit)
+  - `--period=100` - количество свечей для анализа
+  - `--rsi-period=14` - период RSI
+  - `--ema-period=20` - период EMA
+  - `--position-size=100` - размер позиции в USDT
+  - `--fee=0.001` - комиссия (0.001 = 0.1%)
+  - `--stop-loss=5.0` - Stop-Loss процент
+  - `--take-profit=10.0` - Take-Profit процент
+- Пример: `php artisan strategy:backtest BTCUSDT --stop-loss=5 --take-profit=10 --period=500`
+
+#### Stop-Loss / Take-Profit
+
+- Настройка через поля `stop_loss_percent` и `take_profit_percent` в таблице `trading_bots`
+- Автоматическая продажа при достижении Stop-Loss или Take-Profit
+- Работает в режиме реальной торговли и тестовом режиме
+- Логика: проверяется при каждом запуске `bots:run`
 
 
 
