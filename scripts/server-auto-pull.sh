@@ -45,7 +45,7 @@ fi
 
 # Проверка, есть ли новые коммиты
 LOCAL=$(git rev-parse HEAD 2>/dev/null || echo "")
-REMOTE=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null || echo "")
+REMOTE=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/main 2>/dev/null || echo "")
 
 if [ -z "$LOCAL" ] || [ -z "$REMOTE" ]; then
     log "❌ Ошибка: Не удалось определить локальный или удаленный коммит"
@@ -62,7 +62,7 @@ log "   Локальный коммит: ${LOCAL:0:8}"
 log "   Удаленный коммит: ${REMOTE:0:8}"
 
 # Получение изменений
-if ! run_cmd git pull origin main || ! run_cmd git pull origin master; then
+if ! run_cmd git pull origin main || ! run_cmd git pull origin main; then
     log "❌ Ошибка при получении изменений (git pull failed)"
     exit 1
 fi
