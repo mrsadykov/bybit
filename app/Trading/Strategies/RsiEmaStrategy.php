@@ -9,8 +9,8 @@ class RsiEmaStrategy
 {
     public static function decide(array $closes): string
     {
-        $rsi = RsiIndicator::calculate($closes, 14);
-        $ema = EmaIndicator::calculate($closes, 20);
+        $rsi = RsiIndicator::calculate($closes, 17);
+        $ema = EmaIndicator::calculate($closes, 10);
 
         $currentPrice = end($closes);
 

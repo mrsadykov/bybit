@@ -214,10 +214,17 @@ class OptimizeStrategyCommand extends Command
             // Показываем топ-10 даже без сделок для информации
             $this->displayTopResults(array_slice($results, 0, 10), $sortBy);
         } else {
+            // Показываем статистику по количеству сделок
+            $tradesCount = array_count_values(array_column($resultsWithTrades, 'total_trades'));
+            $this->info("Найдено результатов с сделками (Results with trades): " . count($resultsWithTrades));
+            $this->line("Распределение сделок (Trades distribution):");
+            foreach ($tradesCount as $count => $freq) {
+                $this->line("  {$count} сделок: {$freq} комбинаций");
+            }
+            $this->line('');
+            
             // Показываем топ-10 результатов с сделками
             $topResults = array_slice($resultsWithTrades, 0, 10);
-            $this->info("Найдено результатов с сделками (Results with trades): " . count($resultsWithTrades));
-            $this->line('');
             $this->displayTopResults($topResults, $sortBy);
             
             // Дополнительно показываем лучшие по количеству сделок
@@ -227,6 +234,18 @@ class OptimizeStrategyCommand extends Command
                 usort($resultsWithTrades, fn($a, $b) => $b['total_trades'] <=> $a['total_trades']);
                 $bestByTrades = array_slice($resultsWithTrades, 0, 5);
                 $this->displayTopResults($bestByTrades, 'trades');
+            } else {
+                // Если сортируем по trades, показываем примеры с разным количеством сделок
+                $maxTrades = max(array_column($resultsWithTrades, 'total_trades'));
+                if ($maxTrades > 1) {
+                    $this->line('');
+                    $this->info("Примеры параметров с максимальным количеством сделок ({$maxTrades}):");
+                    $bestByTrades = array_filter($resultsWithTrades, fn($r) => $r['total_trades'] == $maxTrades);
+                    // Сортируем по PnL для выбора лучших
+                    usort($bestByTrades, fn($a, $b) => $b['total_pnl'] <=> $a['total_pnl']);
+                    $bestByTrades = array_slice($bestByTrades, 0, 5);
+                    $this->displayTopResults($bestByTrades, 'pnl');
+                }
             }
         }
 

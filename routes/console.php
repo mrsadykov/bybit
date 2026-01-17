@@ -11,3 +11,4 @@ Artisan::command('inspire', function () {
 // Планировщик задач
 Schedule::command('bots:run')->everyFiveMinutes();
 Schedule::command('orders:sync')->everyMinute();
+Schedule::command('telegram:daily-stats')->dailyAt('09:00');
