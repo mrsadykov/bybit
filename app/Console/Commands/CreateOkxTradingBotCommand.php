@@ -13,7 +13,9 @@ class CreateOkxTradingBotCommand extends Command
         {symbol : Trading pair, e.g. BTCUSDT}
         {timeframe : Timeframe, e.g. 5m}
         {strategy : Strategy name, e.g. rsi_ema}
-        {position_size : Position size in USDT, e.g. 10}';
+        {position_size : Position size in USDT, e.g. 10}
+        {--stop-loss= : Stop-Loss процент (например: 5.0 = продать при падении на 5%)}
+        {--take-profit= : Take-Profit процент (например: 10.0 = продать при росте на 10%)}';
 
     protected $description = 'Create a new OKX trading bot';
 
@@ -37,6 +39,8 @@ class CreateOkxTradingBotCommand extends Command
         $timeframe = $this->argument('timeframe');
         $strategy = $this->argument('strategy');
         $positionSize = (float) $this->argument('position_size');
+        $stopLoss = $this->option('stop-loss') ? (float) $this->option('stop-loss') : null;
+        $takeProfit = $this->option('take-profit') ? (float) $this->option('take-profit') : null;
 
         // Валидация position size
         if ($positionSize <= 0) {
@@ -73,6 +77,22 @@ class CreateOkxTradingBotCommand extends Command
             // Не блокируем, но предупреждаем
         }
 
+        // Валидация Stop-Loss
+        if ($stopLoss !== null) {
+            if ($stopLoss <= 0 || $stopLoss > 100) {
+                $this->error('Stop-Loss must be between 0 and 100');
+                return self::FAILURE;
+            }
+        }
+
+        // Валидация Take-Profit
+        if ($takeProfit !== null) {
+            if ($takeProfit <= 0 || $takeProfit > 100) {
+                $this->error('Take-Profit must be between 0 and 100');
+                return self::FAILURE;
+            }
+        }
+
         $bot = TradingBot::query()
             ->create([
                 'user_id' => $user->id,
@@ -81,6 +101,8 @@ class CreateOkxTradingBotCommand extends Command
                 'timeframe' => $timeframe,
                 'strategy' => $strategy,
                 'position_size' => $positionSize,
+                'stop_loss_percent' => $stopLoss,
+                'take_profit_percent' => $takeProfit,
                 'is_active' => false
             ]);
 
@@ -89,6 +111,15 @@ class CreateOkxTradingBotCommand extends Command
         $this->line("   Timeframe: {$bot->timeframe}");
         $this->line("   Strategy: {$bot->strategy}");
         $this->line("   Position size: {$bot->position_size} USDT");
+        
+        if ($bot->stop_loss_percent) {
+            $this->line("   Stop-Loss: -{$bot->stop_loss_percent}%");
+        }
+        
+        if ($bot->take_profit_percent) {
+            $this->line("   Take-Profit: +{$bot->take_profit_percent}%");
+        }
+        
         $this->line("   Status: Inactive (use tinker to activate)");
         $this->line('');
         $this->line("To activate the bot:");

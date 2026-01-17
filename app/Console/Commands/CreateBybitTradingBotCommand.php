@@ -13,7 +13,9 @@ class CreateBybitTradingBotCommand extends Command
         {symbol : BTCUSDT}
         {timeframe : 5m}
         {strategy : rsi_ema}
-        {position_size : 0.00006}'
+        {position_size : 0.00006}
+        {--stop-loss= : Stop-Loss процент (например: 5.0 = продать при падении на 5%)}
+        {--take-profit= : Take-Profit процент (например: 10.0 = продать при росте на 10%)}'
     ;
 
     /**
@@ -34,6 +36,8 @@ class CreateBybitTradingBotCommand extends Command
         $timeframe = $this->argument('timeframe');
         $strategy = $this->argument('strategy');
         $positionSize = (float) $this->argument('position_size');
+        $stopLoss = $this->option('stop-loss') ? (float) $this->option('stop-loss') : null;
+        $takeProfit = $this->option('take-profit') ? (float) $this->option('take-profit') : null;
 
         // Валидация position size
         if ($positionSize <= 0) {
@@ -70,6 +74,22 @@ class CreateBybitTradingBotCommand extends Command
             // Не блокируем, но предупреждаем
         }
 
+        // Валидация Stop-Loss
+        if ($stopLoss !== null) {
+            if ($stopLoss <= 0 || $stopLoss > 100) {
+                $this->error('Stop-Loss must be between 0 and 100');
+                return self::FAILURE;
+            }
+        }
+
+        // Валидация Take-Profit
+        if ($takeProfit !== null) {
+            if ($takeProfit <= 0 || $takeProfit > 100) {
+                $this->error('Take-Profit must be between 0 and 100');
+                return self::FAILURE;
+            }
+        }
+
         $bot = TradingBot::query()
             ->create([
                 'user_id' => $user->id,
@@ -78,6 +98,8 @@ class CreateBybitTradingBotCommand extends Command
                 'timeframe' => $timeframe,
                 'strategy' => $strategy,
                 'position_size' => $positionSize,
+                'stop_loss_percent' => $stopLoss,
+                'take_profit_percent' => $takeProfit,
                 'is_active' => false
             ]);
 
@@ -86,6 +108,14 @@ class CreateBybitTradingBotCommand extends Command
         $this->info("Timeframe: {$bot->timeframe}.");
         $this->info("Strategy: {$bot->strategy}.");
         $this->info("Position size: {$bot->position_size} USDT.");
+        
+        if ($bot->stop_loss_percent) {
+            $this->info("Stop-Loss: -{$bot->stop_loss_percent}%.");
+        }
+        
+        if ($bot->take_profit_percent) {
+            $this->info("Take-Profit: +{$bot->take_profit_percent}%.");
+        }
 
         return self::SUCCESS;
     }

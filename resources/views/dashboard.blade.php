@@ -187,6 +187,16 @@
                                 <div><span class="text-gray-500">Стратегия:</span> <span class="font-medium">{{ $bot->strategy }}</span></div>
                                 <div><span class="text-gray-500">Таймфрейм:</span> <span class="font-medium">{{ $bot->timeframe }}</span></div>
                                 <div><span class="text-gray-500">Размер позиции:</span> <span class="font-medium">{{ $bot->position_size }} USDT</span></div>
+                                @if($bot->stop_loss_percent || $bot->take_profit_percent)
+                                    <div class="pt-1 border-t border-gray-200 mt-1">
+                                        @if($bot->stop_loss_percent)
+                                            <div><span class="text-gray-500">Stop-Loss:</span> <span class="font-medium text-red-600">-{{ number_format($bot->stop_loss_percent, 2) }}%</span></div>
+                                        @endif
+                                        @if($bot->take_profit_percent)
+                                            <div><span class="text-gray-500">Take-Profit:</span> <span class="font-medium text-green-600">+{{ number_format($bot->take_profit_percent, 2) }}%</span></div>
+                                        @endif
+                                    </div>
+                                @endif
                                 <div><span class="text-gray-500">Биржа:</span> <span class="font-medium">{{ strtoupper($bot->exchangeAccount->exchange ?? 'N/A') }}</span></div>
                                 @if($bot->last_trade_at)
                                     <div><span class="text-gray-500">Последняя сделка:</span> <span class="font-medium">{{ $bot->last_trade_at->format('Y-m-d H:i') }}</span></div>
