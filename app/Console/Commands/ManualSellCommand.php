@@ -12,7 +12,7 @@ class ManualSellCommand extends Command
 {
     protected $signature = 'trade:sell
         {symbol : Trading pair (e.g. BTCUSDT)}
-        {quantity : Quantity to sell (e.g. 0.001)}
+        {quantity? : Quantity to sell (e.g. 0.001). Ignored if --all is used}
         {--bot= : Bot ID (optional, uses first active bot if not specified)}
         {--dry-run : Test mode (no real trading)}
         {--all : Sell all available balance}';
@@ -61,6 +61,7 @@ class ManualSellCommand extends Command
         // Определяем количество для продажи
         $baseCoin = str_replace('USDT', '', $symbol);
         if ($sellAll) {
+            // Продаем весь доступный баланс
             try {
                 $quantity = $exchangeService->getBalance($baseCoin);
                 $this->info("Доступный баланс {$baseCoin} (Available {$baseCoin} balance): {$quantity}");
@@ -69,12 +70,42 @@ class ManualSellCommand extends Command
                 return self::FAILURE;
             }
         } else {
-            $quantity = (float) $this->argument('quantity');
+            // Продаем указанное количество
+            $quantityArg = $this->argument('quantity');
+            if ($quantityArg === null) {
+                $this->error("Необходимо указать количество или использовать --all (Quantity required or use --all flag)");
+                $this->info("Примеры (Examples):");
+                $this->line("  php artisan trade:sell BTCUSDT 0.001");
+                $this->line("  php artisan trade:sell BTCUSDT --all");
+                return self::FAILURE;
+            }
+            $quantity = (float) $quantityArg;
         }
 
         if ($quantity <= 0) {
             $this->error("Количество должно быть больше 0 (Quantity must be greater than 0)");
             return self::FAILURE;
+        }
+
+        // Округляем количество до 4 знаков после запятой (для BTC)
+        $quantity = round($quantity, 4);
+
+        // Проверка минимального размера ордера для OKX
+        $exchange = $bot->exchangeAccount->exchange;
+        if ($exchange === 'okx') {
+            // OKX минимальный размер ордера для BTCUSDT обычно 0.0001 BTC
+            $minQuantity = 0.0001;
+            if ($quantity < $minQuantity) {
+                $this->error("Количество {$quantity} {$baseCoin} меньше минимума OKX ({$minQuantity} {$baseCoin}) (Quantity {$quantity} {$baseCoin} is less than OKX minimum ({$minQuantity} {$baseCoin}))");
+                $this->warn("Минимальный размер ордера для BTCUSDT на OKX: {$minQuantity} BTC");
+                $this->warn("Текущий баланс: {$quantity} {$baseCoin}");
+                
+                if ($sellAll) {
+                    $this->warn("⚠️  Ваш баланс слишком мал для продажи на OKX. Минимальный размер ордера: {$minQuantity} {$baseCoin}");
+                }
+                
+                return self::FAILURE;
+            }
         }
 
         $this->info("Ручная продажа (Manual SELL order)");
