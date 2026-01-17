@@ -593,7 +593,10 @@ class RunTradingBotsCommand extends Command
 
             // HOLD сигнал - No action taken
             $this->info('Действий не предпринято (No action taken)');
-            $telegram->notifyHold($bot->symbol, $price, $signal, $rsi, $ema);
+            // Берем последние значения RSI и EMA (массивы индикаторов)
+            $lastRsi = is_array($rsi) ? end($rsi) : $rsi;
+            $lastEma = is_array($ema) ? end($ema) : $ema;
+            $telegram->notifyHold($bot->symbol, $price, $signal, $lastRsi, $lastEma);
         }
 
         $this->info('Все боты обработаны (All bots processed).');

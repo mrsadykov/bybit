@@ -327,27 +327,76 @@ class OKXService
     }
 
     /**
-     * Конвертирует интервал из формата Bybit в формат OKX
+     * Конвертирует интервал из формата Bybit/универсального в формат OKX
+     * Поддерживает форматы: "1h", "5m", "15m", "60" и т.д.
      */
     private function formatInterval(string $interval): string
     {
+        // Нормализуем входной формат (убираем пробелы)
+        $interval = trim($interval);
+        $intervalLower = strtolower($interval);
+        
+        // Если формат с буквой (например "1h", "5m", "15m", "1H")
+        if (preg_match('/^(\d+)([mhdwM])$/i', $intervalLower, $matches)) {
+            $value = (int)$matches[1];
+            $unit = strtolower($matches[2]);
+            
+            // Часы (h или H)
+            if ($unit === 'h') {
+                $valueInMinutes = $value * 60;
+            }
+            // Минуты (m - но не M для месяца)
+            elseif ($unit === 'm' && $value <= 60) {
+                $valueInMinutes = $value;
+            }
+            // Дни (d или D)
+            elseif ($unit === 'd') {
+                return '1D';
+            }
+            // Недели (w или W)
+            elseif ($unit === 'w') {
+                return '1W';
+            }
+            // Месяцы (M - заглавная)
+            elseif ($unit === 'm' && strtoupper($interval) === $interval && $value > 60) {
+                return '1M';
+            }
+            // По умолчанию - минуты
+            else {
+                $valueInMinutes = $value;
+            }
+        }
+        // Если просто число (например "60", "15")
+        else {
+            $valueInMinutes = (int)$interval;
+        }
+        
+        // Маппинг минут в формат OKX
         $map = [
-            '1' => '1m',
-            '3' => '3m',
-            '5' => '5m',
-            '15' => '15m',
-            '30' => '30m',
-            '60' => '1H',
-            '120' => '2H',
-            '240' => '4H',
-            '360' => '6H',
-            '720' => '12H',
-            'D' => '1D',
-            'W' => '1W',
-            'M' => '1M',
+            1 => '1m',
+            3 => '3m',
+            5 => '5m',
+            15 => '15m',
+            30 => '30m',
+            60 => '1H',
+            120 => '2H',
+            240 => '4H',
+            360 => '6H',
+            720 => '12H',
         ];
-
-        return $map[$interval] ?? $interval;
+        
+        // Если значение найдено в маппинге
+        if (isset($map[$valueInMinutes])) {
+            return $map[$valueInMinutes];
+        }
+        
+        // Если не найдено, возвращаем как есть (может быть уже в формате OKX)
+        // Или пытаемся нормализовать часы
+        if (preg_match('/^(\d+)[hH]$/i', $interval)) {
+            return strtoupper($interval); // "1h" -> "1H"
+        }
+        
+        return $interval;
     }
 
     public function getBaseUrl(): string
