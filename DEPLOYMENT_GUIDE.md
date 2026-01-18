@@ -254,6 +254,16 @@ sudo systemctl reload nginx
 
 ### 7. Настройка прав доступа
 
+**⚠️ ВАЖНО:** Laravel требует права на запись в `storage/` и `bootstrap/cache/` для работы логов, кэша и других файлов.
+
+**Если видите ошибку:**
+```
+The stream or file "/var/www/trading-bot/storage/logs/laravel-YYYY-MM-DD.log" 
+could not be opened in append mode: Permission denied
+```
+
+**Решение:**
+
 ```bash
 cd /var/www/trading-bot
 
@@ -261,9 +271,18 @@ cd /var/www/trading-bot
 sudo chmod 600 .env
 sudo chown root:root .env
 
-# Права для storage и bootstrap/cache
+# Права для storage и bootstrap/cache (ВЛАДЕЛЕЦ www-data)
 sudo chown -R www-data:www-data storage bootstrap/cache
 sudo chmod -R 775 storage bootstrap/cache
+
+# Альтернативный вариант (если 775 не работает, используйте более широкие права):
+# sudo chmod -R 755 storage bootstrap/cache
+# Но лучше оставить 775 и владелец www-data
+
+# Убедитесь, что директории логов существуют и имеют правильные права
+sudo mkdir -p storage/logs
+sudo mkdir -p storage/framework/{sessions,views,cache}
+sudo mkdir -p bootstrap/cache
 
 # Права для vendor и node_modules (должны быть доступны для чтения)
 sudo chown -R www-data:www-data vendor node_modules
@@ -276,7 +295,28 @@ sudo find . -type d -exec chmod 755 {} \;
 
 # Исключения: .env и artisan должны быть исполняемыми
 sudo chmod 600 .env
+sudo chown root:root .env
 sudo chmod 755 artisan
+
+# Проверка прав (должно показать www-data:www-data для storage)
+ls -la storage/ | head -5
+ls -la bootstrap/cache/ | head -5
+```
+
+**Если проблема сохраняется:**
+
+```bash
+# Проверьте, кто является владельцем PHP-FPM процесса
+ps aux | grep php-fpm | head -1
+
+# Обычно это www-data, но может быть другой пользователь
+# Если другой, замените www-data на нужного пользователя в командах выше
+
+# Также убедитесь, что storage/logs доступен для записи
+sudo touch storage/logs/test.log
+sudo rm storage/logs/test.log
+
+# Если команда выше не выдает ошибок, права настроены правильно
 ```
 
 ### 8. Выполнение миграций
@@ -664,10 +704,38 @@ php artisan schedule:list  # Если используете Laravel Scheduler
 - Проверьте права API ключей на бирже
 - Проверьте лимиты API биржи
 
-### Проблемы с правами
+### Проблемы с правами доступа
+
+**Ошибка:** `Permission denied` при записи в `storage/logs/laravel-*.log`
+
+**Решение:**
 ```bash
-sudo chown -R www-data:www-data /var/www/trading-bot
-sudo chmod -R 755 /var/www/trading-bot
+cd /var/www/trading-bot
+
+# Установка правильного владельца для storage
+sudo chown -R www-data:www-data storage bootstrap/cache
+
+# Установка прав (775 для директорий и файлов в storage)
+sudo chmod -R 775 storage bootstrap/cache
+
+# Альтернативный вариант (если 775 не работает):
+sudo chmod -R 755 storage bootstrap/cache
+
+# Проверка
+ls -la storage/ | head -5
+```
+
+**Если проблема сохраняется:**
+```bash
+# Проверьте пользователя PHP-FPM
+ps aux | grep php-fpm | head -1
+
+# Убедитесь, что директории существуют
+sudo mkdir -p storage/logs storage/framework/{sessions,views,cache}
+sudo mkdir -p bootstrap/cache
+
+# Установите права снова
+sudo chown -R www-data:www-data storage bootstrap/cache
 sudo chmod -R 775 storage bootstrap/cache
 ```
 

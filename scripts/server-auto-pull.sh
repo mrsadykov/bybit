@@ -67,6 +67,11 @@ if ! run_cmd git pull origin main || ! run_cmd git pull origin main; then
     exit 1
 fi
 
+# Установка прав доступа для storage и bootstrap/cache
+log "🔐 Установка прав доступа для storage и bootstrap/cache..."
+run_cmd sudo chown -R www-data:www-data "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" || true
+run_cmd sudo chmod -R 775 "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" || true
+
 # Сохраняем список измененных файлов
 CHANGED_FILES=$(git diff --name-only HEAD@{1} HEAD 2>/dev/null || echo "")
 

@@ -20,6 +20,11 @@ echo "📥 Получение изменений из Git..."
 git --git-dir="${GIT_DIR}" --work-tree="${DEPLOY_PATH}" checkout -f main || \
 git --git-dir="${GIT_DIR}" --work-tree="${DEPLOY_PATH}" checkout -f master
 
+# Установка прав доступа для storage и bootstrap/cache
+echo "🔐 Установка прав доступа для storage и bootstrap/cache..."
+sudo chown -R www-data:www-data "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" || true
+sudo chmod -R 775 "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" || true
+
 # Установка зависимостей Composer
 echo "📦 Установка зависимостей Composer..."
 composer install --no-dev --optimize-autoloader --quiet

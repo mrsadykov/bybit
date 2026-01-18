@@ -47,6 +47,10 @@ ssh ${SERVER_USER}@${SERVER_IP} bash -s "${SERVER_PATH}" << 'ENDSSH'
     echo "📥 Получение изменений из Git..."
     git pull origin main || git pull origin master
     
+    echo "🔐 Установка прав доступа для storage и bootstrap/cache..."
+    sudo chown -R www-data:www-data storage/ bootstrap/cache/ || true
+    sudo chmod -R 775 storage/ bootstrap/cache/ || true
+    
     echo "📦 Установка зависимостей Composer..."
     composer install --no-dev --optimize-autoloader
     
