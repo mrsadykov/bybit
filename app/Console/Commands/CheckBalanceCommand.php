@@ -66,8 +66,8 @@ class CheckBalanceCommand extends Command
                     }
                 }
             } else {
-                // Для OKX получаем основные монеты
-                $mainCoins = ['BTC', 'USDT', 'ETH'];
+                // Для OKX получаем основные монеты (расширенный список)
+                $mainCoins = ['BTC', 'USDT', 'ETH', 'SOL', 'BNB', 'ADA', 'DOGE', 'XRP'];
                 foreach ($mainCoins as $mainCoin) {
                     try {
                         $coinBalance = $exchangeService->getBalance($mainCoin);

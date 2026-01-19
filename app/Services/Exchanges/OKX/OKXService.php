@@ -184,6 +184,42 @@ class OKXService
         return (float) ($details['availBal'] ?? 0);
     }
 
+    /**
+     * Получить баланс всех монет
+     */
+    public function getAllBalances(): array
+    {
+        // Получаем все балансы без фильтра по монете
+        $data = $this->privateGet('/account/balance', []);
+
+        $balances = [];
+        
+        if (empty($data['data'])) {
+            return $balances;
+        }
+
+        // Обрабатываем все аккаунты
+        foreach ($data['data'] as $account) {
+            $details = $account['details'] ?? [];
+            
+            foreach ($details as $detail) {
+                $coin = $detail['ccy'] ?? '';
+                $availBal = (float) ($detail['availBal'] ?? 0);
+                
+                if ($coin && $availBal > 0) {
+                    // Если монета уже есть, суммируем балансы
+                    if (isset($balances[$coin])) {
+                        $balances[$coin] += $availBal;
+                    } else {
+                        $balances[$coin] = $availBal;
+                    }
+                }
+            }
+        }
+
+        return $balances;
+    }
+
     /* ================= ORDERS ================= */
 
     /**
