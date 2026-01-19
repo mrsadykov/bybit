@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\TradingBot;
+use App\Models\Trade;
 use App\Services\Exchanges\ExchangeServiceFactory;
 use Carbon\Carbon;
 
@@ -231,12 +232,17 @@ class RecoverTradesCommand extends Command
                 'filled_at'    => $filledAt,
             ];
 
-            $existingTrade = $bot->trades()->where('order_id', $orderId)->first();
+            // Проверяем существование trade глобально по order_id (уникальный ключ)
+            $existingTrade = Trade::where('order_id', $orderId)->first();
             
             if ($existingTrade) {
-                $existingTrade->update($tradeData);
+                // Обновляем существующий trade, включая trading_bot_id на случай если он изменился
+                $existingTrade->update(array_merge($tradeData, [
+                    'trading_bot_id' => $bot->id,
+                ]));
                 $updated++;
             } else {
+                // Создаем новый trade
                 $bot->trades()->create(array_merge($tradeData, [
                     'order_id' => $orderId,
                 ]));
