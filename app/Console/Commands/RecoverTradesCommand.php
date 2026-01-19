@@ -291,55 +291,63 @@ class RecoverTradesCommand extends Command
         $closed = 0;
 
         // Связываем SELL ордера с BUY ордерами по принципу FIFO
+        // Поддерживаем частичные продажи и закрытие нескольких BUY одним SELL
         foreach ($sellTrades as $sell) {
-            // Находим первый открытый BUY, который еще не закрыт
-            $buy = $buyTrades->first(function ($buy) {
-                return $buy->closed_at === null;
-            });
+            $remainingSellQty = $sell->quantity;
+            
+            // Получаем все открытые BUY позиции (FIFO)
+            $openBuys = $bot->trades()
+                ->where('side', 'BUY')
+                ->where('status', 'FILLED')
+                ->whereNull('closed_at')
+                ->orderBy('filled_at', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
 
-            if (!$buy) {
-                break; // Нет открытых BUY для связывания
+            if ($openBuys->isEmpty()) {
+                continue; // Нет открытых BUY для связывания
             }
 
-            // Связываем SELL с BUY
-            $sell->update(['parent_id' => $buy->id]);
+            // Связываем SELL с первым BUY (для parent_id)
+            $firstBuy = $openBuys->first();
+            $sell->update(['parent_id' => $firstBuy->id]);
             $linked++;
 
-            // Проверяем, закрыт ли BUY полностью
-            $totalSold = $bot->trades()
-                ->where('side', 'SELL')
-                ->where('parent_id', $buy->id)
-                ->where('status', 'FILLED')
-                ->sum('quantity');
+            // Распределяем SELL по BUY позициям (FIFO)
+            foreach ($openBuys as $buy) {
+                if ($remainingSellQty <= 0) {
+                    break; // Весь SELL уже распределен
+                }
 
-            // Если продано больше или равно купленному, закрываем позицию
-            if ($totalSold >= $buy->quantity) {
-                // Рассчитываем PnL для всех SELL, связанных с этим BUY
-                $sellTradesForBuy = $bot->trades()
-                    ->where('side', 'SELL')
-                    ->where('parent_id', $buy->id)
-                    ->where('status', 'FILLED')
-                    ->get();
+                // Определяем, сколько из этого BUY было продано
+                $buyQtySold = min($remainingSellQty, $buy->quantity);
+                $remainingSellQty -= $buyQtySold;
 
-                $totalSellValue = $sellTradesForBuy->sum(function ($sell) {
-                    return $sell->price * $sell->quantity;
-                });
-
-                $totalSellFees = $sellTradesForBuy->sum('fee') ?? 0;
+                // Рассчитываем PnL для этой части
+                // Пропорционально распределяем цену продажи и комиссию
+                $sellPriceRatio = $buyQtySold / $sell->quantity;
+                $sellValueForBuy = $sell->price * $buyQtySold;
+                $sellFeeForBuy = ($sell->fee ?? 0) * $sellPriceRatio;
 
                 $pnl = (
-                    $totalSellValue
-                    - ($buy->price * $buy->quantity)
-                    - ($buy->fee ?? 0)
-                    - $totalSellFees
+                    $sellValueForBuy
+                    - ($buy->price * $buyQtySold)
+                    - (($buy->fee ?? 0) * ($buyQtySold / $buy->quantity))
+                    - $sellFeeForBuy
                 );
 
-                $buy->update([
-                    'closed_at' => $buy->filled_at ?? now(),
-                    'realized_pnl' => $pnl,
-                ]);
+                // Если продано все количество BUY, закрываем позицию
+                if ($buyQtySold >= $buy->quantity) {
+                    $buy->update([
+                        'closed_at'    => $sell->filled_at ?? $buy->filled_at ?? now(),
+                        'realized_pnl' => $pnl,
+                    ]);
 
-                $closed++;
+                    $closed++;
+                } else {
+                    // Частичная продажа - не закрываем позицию, но можно сохранить частичный PnL
+                    // Для простоты не сохраняем частичный PnL, т.к. позиция еще открыта
+                }
             }
         }
 
