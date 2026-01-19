@@ -100,6 +100,48 @@ PENDING → SENT → FILLED / PARTIALLY_FILLED / FAILED
 - Размещает ордера BUY/SELL при соответствующих сигналах
 - Рекомендуется запускать через cron каждые 1-5 минут
 
+#### Ручная торговля (Manual Trading)
+
+**`php artisan trade:buy {symbol} {amount} [--bot=ID] [--dry-run]`**
+- Ручная покупка (Manual BUY order)
+- Параметры:
+  - `symbol` - торговая пара (например: BTCUSDT, ETHUSDT)
+  - `amount` - сумма в USDT для покупки (например: 5)
+  - `--bot=ID` - ID конкретного бота (опционально, использует первый активный бот)
+  - `--dry-run` - тестовый режим (без реальной торговли, только уведомление в Telegram)
+- Примеры:
+  - `php artisan trade:buy ETHUSDT 5 --dry-run` - пробная покупка 5 USDT ETH
+  - `php artisan trade:buy BTCUSDT 10` - реальная покупка 10 USDT BTC
+  - `php artisan trade:buy ETHUSDT 5 --bot=2` - покупка через конкретного бота
+
+**`php artisan trade:sell {symbol} {quantity?} [--bot=ID] [--dry-run] [--all]`**
+- Ручная продажа (Manual SELL order)
+- Параметры:
+  - `symbol` - торговая пара (BTCUSDT продает BTC, ETHUSDT продает ETH)
+  - `quantity` - количество базовой монеты для продажи (например: 0.001 для BTC, 0.01 для ETH). Игнорируется если используется `--all`
+  - `--bot=ID` - ID конкретного бота (опционально, использует первый активный бот)
+  - `--dry-run` - тестовый режим (без реальной торговли, только уведомление в Telegram)
+  - `--all` - продать весь доступный баланс базовой монеты
+- Примеры для ETH:
+  - `php artisan trade:sell ETHUSDT 0.01 --dry-run` - пробная продажа 0.01 ETH
+  - `php artisan trade:sell ETHUSDT 0.01` - реальная продажа 0.01 ETH
+  - `php artisan trade:sell ETHUSDT 0 --all --dry-run` - пробная продажа всего ETH баланса
+  - `php artisan trade:sell ETHUSDT 0 --all` - реальная продажа всего ETH баланса
+- Примеры для BTC:
+  - `php artisan trade:sell BTCUSDT 0.001 --dry-run` - пробная продажа 0.001 BTC
+  - `php artisan trade:sell BTCUSDT 0.001` - реальная продажа 0.001 BTC
+  - `php artisan trade:sell BTCUSDT 0 --all --dry-run` - пробная продажа всего BTC баланса
+  - `php artisan trade:sell BTCUSDT 0 --all` - реальная продажа всего BTC баланса
+- ⚠️ **Важно для OKX:** 
+  - Минимальный размер ордера для BTCUSDT: 0.0001 BTC
+  - Минимальный размер ордера для ETHUSDT: 0.001 ETH (примерно)
+
+**Пробная торговля (Dry Run):**
+- Используйте флаг `--dry-run` для тестирования без реальных сделок
+- Проверяет баланс, получает цену, отправляет уведомление в Telegram
+- Не создает реальных ордеров на бирже
+- Полезно для проверки работы команд перед реальной торговлей
+
 #### Синхронизация и восстановление
 
 **`php artisan orders:sync`**
@@ -275,9 +317,6 @@ orders:sync
 - Автоматическая продажа при достижении Stop-Loss или Take-Profit
 - Работает в режиме реальной торговли и тестовом режиме
 - Логика: проверяется при каждом запуске `bots:run`
-
-##111
-###222
 
 
 
