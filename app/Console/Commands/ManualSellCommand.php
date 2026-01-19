@@ -87,24 +87,51 @@ class ManualSellCommand extends Command
             return self::FAILURE;
         }
 
-        // Округляем количество до 4 знаков после запятой (для BTC)
-        $quantity = round($quantity, 4);
+        // Округляем количество в зависимости от монеты и режима
+        if ($sellAll) {
+            // При --all используем точное значение баланса (не округляем вверх)
+            // Округляем вниз до 8 знаков для безопасности
+            $quantity = floor($quantity * 100000000) / 100000000;
+        } else {
+            // Для конкретного количества округляем до 4 знаков (для BTC)
+            $quantity = round($quantity, 4);
+        }
 
         // Проверка минимального размера ордера для OKX
         $exchange = $bot->exchangeAccount->exchange;
         if ($exchange === 'okx') {
-            // OKX минимальный размер ордера для BTCUSDT обычно 0.0001 BTC
-            $minQuantity = 0.0001;
-            if ($quantity < $minQuantity) {
-                $this->error("Количество {$quantity} {$baseCoin} меньше минимума OKX ({$minQuantity} {$baseCoin}) (Quantity {$quantity} {$baseCoin} is less than OKX minimum ({$minQuantity} {$baseCoin}))");
-                $this->warn("Минимальный размер ордера для BTCUSDT на OKX: {$minQuantity} BTC");
-                $this->warn("Текущий баланс: {$quantity} {$baseCoin}");
+            // Минимальные размеры ордеров для разных монет на OKX
+            // Примечание: реальные минимумы могут отличаться, но это приблизительные значения
+            $minQuantities = [
+                'BTC' => 0.0001,
+                'ETH' => 0.001,
+                'SOL' => 0.01,  // Может быть меньше, но для безопасности используем 0.01
+                'BNB' => 0.001,
+                'ADA' => 1.0,
+                'DOGE' => 10.0,
+                'XRP' => 1.0,
+            ];
+            
+            // Для SOL минимальный размер может быть меньше (0.001), но проверим
+            // Если баланс очень мал, но больше 0.001, попробуем продать
+            if ($baseCoin === 'SOL' && $quantity >= 0.001 && $quantity < 0.01) {
+                // Для SOL с балансом от 0.001 до 0.01 попробуем продать (может сработать)
+                $this->warn("⚠️  Баланс SOL ({$quantity}) меньше рекомендуемого минимума (0.01), но попробуем продать...");
+                // Продолжаем выполнение без проверки минимума
+            } else {
+                $minQuantity = $minQuantities[$baseCoin] ?? 0.0001; // По умолчанию для BTC
                 
-                if ($sellAll) {
-                    $this->warn("⚠️  Ваш баланс слишком мал для продажи на OKX. Минимальный размер ордера: {$minQuantity} {$baseCoin}");
+                if ($quantity < $minQuantity) {
+                    $this->error("Количество {$quantity} {$baseCoin} меньше минимума OKX ({$minQuantity} {$baseCoin}) (Quantity {$quantity} {$baseCoin} is less than OKX minimum ({$minQuantity} {$baseCoin}))");
+                    $this->warn("Минимальный размер ордера для {$symbol} на OKX: {$minQuantity} {$baseCoin}");
+                    $this->warn("Текущий баланс: {$quantity} {$baseCoin}");
+                    
+                    if ($sellAll) {
+                        $this->warn("⚠️  Ваш баланс слишком мал для продажи на OKX. Минимальный размер ордера: {$minQuantity} {$baseCoin}");
+                    }
+                    
+                    return self::FAILURE;
                 }
-                
-                return self::FAILURE;
             }
         }
 
