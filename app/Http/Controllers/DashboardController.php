@@ -101,11 +101,16 @@ class DashboardController extends Controller
 
         $closedPositionsCount = $closedPositions->count();
 
-        // Получаем сохраненную статистику из БД (за последние 30 дней)
+        // Получаем сохраненную статистику из БД
+        // Приоритет: сначала за все время (days_period = 0), потом за 30 дней
         $today = now()->format('Y-m-d');
         $savedStats = BotStatistics::where('trading_bot_id', null) // Общая статистика
             ->where('analysis_date', $today)
-            ->where('days_period', 30)
+            ->where(function($query) {
+                $query->where('days_period', 0)  // За все время
+                      ->orWhere('days_period', 30); // За 30 дней
+            })
+            ->orderByRaw('CASE WHEN days_period = 0 THEN 0 ELSE 1 END') // Сначала 0 (все время), потом 30
             ->first();
 
         // Статистика по каждому боту

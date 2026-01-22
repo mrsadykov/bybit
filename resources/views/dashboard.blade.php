@@ -78,7 +78,7 @@
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-lg font-semibold text-blue-900">
-                        📊 Статистика за 30 дней (обновлено: {{ $savedStats->updated_at->format('Y-m-d H:i') }})
+                        📊 Статистика {{ $savedStats->days_period == 0 ? 'за все время' : 'за ' . $savedStats->days_period . ' дней' }} (обновлено: {{ $savedStats->updated_at->format('Y-m-d H:i') }})
                     </h3>
                     <span class="text-xs text-blue-600">Автоматически обновляется каждый день в 00:00</span>
                 </div>

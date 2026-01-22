@@ -39,8 +39,10 @@ class AnalyzePerformanceCommand extends Command
                 $this->error("Бот #{$botId} не найден (Bot #{$botId} not found)");
                 return self::FAILURE;
             }
+            $userBotIds = $bots->pluck('id')->toArray();
         } else {
             $bots = TradingBot::all();
+            $userBotIds = $bots->pluck('id')->toArray();
         }
 
         if ($bots->isEmpty()) {
@@ -66,17 +68,22 @@ class AnalyzePerformanceCommand extends Command
             $this->line('');
         }
 
-        // Общая статистика
+        // Общая статистика (рассчитываем за ВСЕ время, не только за период)
         if ($bots->count() > 1) {
             $this->line(str_repeat('=', 60));
             $this->info("📈 ОБЩАЯ СТАТИСТИКА (OVERALL STATISTICS)");
             $this->line(str_repeat('-', 60));
 
-            $overallStats = $this->calculateOverallStats($allResults);
-            $this->displayStats($overallStats, true);
+            // Рассчитываем общую статистику за ВСЕ время (не только за период)
+            $overallStatsAllTime = $this->calculateOverallStatsAllTime($userBotIds ?? []);
+            $this->displayStats($overallStatsAllTime, true);
 
-            // Сохраняем общую статистику (без bot_id)
+            // Сохраняем общую статистику за период (30 дней)
+            $overallStats = $this->calculateOverallStats($allResults);
             $this->saveStatistics(null, $overallStats, $analysisDate, $days);
+            
+            // Также сохраняем статистику за ВСЕ время (days_period = 0)
+            $this->saveStatistics(null, $overallStatsAllTime, $analysisDate, 0);
         }
 
         // Экспорт в CSV
@@ -229,6 +236,62 @@ class AnalyzePerformanceCommand extends Command
             'total_pnl' => round($totalPnL, 8),
             'avg_pnl' => $avgPnL,
             'max_drawdown' => $maxDrawdown,
+        ];
+    }
+
+    protected function calculateOverallStatsAllTime(array $botIds): array
+    {
+        if (empty($botIds)) {
+            return $this->getEmptyStats();
+        }
+
+        // Получаем ВСЕ закрытые позиции (без фильтра по дате)
+        $closedTrades = Trade::whereIn('trading_bot_id', $botIds)
+            ->whereNotNull('closed_at')
+            ->whereNotNull('realized_pnl')
+            ->get();
+
+        if ($closedTrades->isEmpty()) {
+            return $this->getEmptyStats();
+        }
+
+        // Базовые метрики
+        $totalTrades = $closedTrades->count();
+        $winningTrades = $closedTrades->where('realized_pnl', '>', 0)->count();
+        $losingTrades = $closedTrades->where('realized_pnl', '<', 0)->count();
+        $totalPnL = $closedTrades->sum('realized_pnl');
+        $winRate = $totalTrades > 0 ? round(($winningTrades / $totalTrades) * 100, 2) : 0;
+
+        // Средний PnL
+        $avgPnL = $totalTrades > 0 ? round($totalPnL / $totalTrades, 8) : 0;
+
+        // Profit Factor
+        $totalProfit = $closedTrades->where('realized_pnl', '>', 0)->sum('realized_pnl');
+        $totalLoss = abs($closedTrades->where('realized_pnl', '<', 0)->sum('realized_pnl'));
+        $profitFactor = $totalLoss > 0 ? round($totalProfit / $totalLoss, 2) : ($totalProfit > 0 ? 999 : 0);
+
+        // Максимальная просадка
+        $maxDrawdown = $this->calculateMaxDrawdown($closedTrades);
+
+        // Лучшая/худшая сделка
+        $bestTrade = $closedTrades->max('realized_pnl');
+        $worstTrade = $closedTrades->min('realized_pnl');
+
+        return [
+            'total_trades' => $totalTrades,
+            'winning_trades' => $winningTrades,
+            'losing_trades' => $losingTrades,
+            'win_rate' => $winRate,
+            'total_pnl' => round($totalPnL, 8),
+            'avg_pnl' => $avgPnL,
+            'avg_win' => $winningTrades > 0 ? round($closedTrades->where('realized_pnl', '>', 0)->avg('realized_pnl'), 8) : 0,
+            'avg_loss' => $losingTrades > 0 ? round(abs($closedTrades->where('realized_pnl', '<', 0)->avg('realized_pnl')), 8) : 0,
+            'profit_factor' => $profitFactor,
+            'max_drawdown' => round($maxDrawdown, 8),
+            'best_trade' => round($bestTrade, 8),
+            'worst_trade' => round($worstTrade, 8),
+            'avg_hold_time_hours' => 0,
+            'trades_per_day' => 0,
         ];
     }
 
