@@ -339,51 +339,79 @@ class SyncOrdersCommand extends Command
 
             // Если SELL уже имеет parent_id, проверяем конкретный BUY
             if ($sell->parent_id) {
+                $this->line("  🔍 Проверка SELL #{$sell->id} с parent_id={$sell->parent_id} (Checking SELL #{$sell->id} with parent_id={$sell->parent_id})...");
                 $buy = Trade::find($sell->parent_id);
-                if ($buy && $buy->side === 'BUY' && $buy->status === 'FILLED' && !$buy->closed_at) {
-                    // Закрываем позицию, даже если количество SELL меньше количества BUY
-                    $buyQtySold = min($sell->quantity, $buy->quantity);
-                    $sellPriceRatio = $buyQtySold / $sell->quantity;
-                    $sellValueForBuy = $sell->price * $buyQtySold;
-                    $sellFeeForBuy = ($sell->fee ?? 0) * $sellPriceRatio;
-
-                    $pnl = (
-                        $sellValueForBuy
-                        - ($buy->price * $buyQtySold)
-                        - (($buy->fee ?? 0) * ($buyQtySold / $buy->quantity))
-                        - $sellFeeForBuy
-                    );
-
-                    // Закрываем позицию, если продано все количество BUY или если SELL связан с этим BUY
-                    if ($buyQtySold >= $buy->quantity) {
-                        $buy->update([
-                            'closed_at'    => $sell->filled_at ?? now(),
-                            'realized_pnl' => $pnl,
-                        ]);
-
-                        $this->info("  💰 Позиция #{$buy->id} закрыта! (Position #{$buy->id} closed!) PnL: " . number_format($pnl, 8) . " USDT");
-
-                        $telegram = new TelegramService();
-                        $pnlEmoji = $pnl >= 0 ? '📈' : '📉';
-                        $telegram->sendMessage(
-                            "{$pnlEmoji} <b>ПОЗИЦИЯ ЗАКРЫТА (POSITION CLOSED)</b>\n\n" .
-                            "Символ (Symbol): <b>{$sell->symbol}</b>\n" .
-                            "Количество продажи (Sell Quantity): <b>{$sell->quantity}</b>\n" .
-                            "Цена продажи (Sell Price): <b>\${$sell->price}</b>\n" .
-                            "PnL: <b>" . number_format($pnl, 8) . " USDT</b>\n" .
-                            "Время (Time): " . now()->format('Y-m-d H:i:s')
-                        );
-
-                        logger()->info('Position closed (additional check with parent_id)', [
-                            'buy_trade_id' => $buy->id,
-                            'sell_trade_id' => $sell->id,
-                            'pnl' => $pnl,
-                            'buy_price' => $buy->price,
-                            'sell_price' => $sell->price,
-                            'quantity_sold' => $buyQtySold,
-                        ]);
-                    }
+                
+                if (!$buy) {
+                    $this->warn("  ⚠️  BUY #{$sell->parent_id} не найден (BUY #{$sell->parent_id} not found)");
+                    continue;
                 }
+                
+                if ($buy->side !== 'BUY') {
+                    $this->warn("  ⚠️  Trade #{$sell->parent_id} не является BUY (Trade #{$sell->parent_id} is not a BUY)");
+                    continue;
+                }
+                
+                if ($buy->status !== 'FILLED') {
+                    $this->warn("  ⚠️  BUY #{$sell->parent_id} не заполнен (BUY #{$sell->parent_id} is not FILLED)");
+                    continue;
+                }
+                
+                if ($buy->closed_at) {
+                    $this->line("  ✓ BUY #{$sell->parent_id} уже закрыт (BUY #{$sell->parent_id} already closed)");
+                    continue;
+                }
+                
+                $this->info("  ✅ Найден открытый BUY #{$buy->id} (Found open BUY #{$buy->id})");
+                $this->line("     BUY количество (BUY quantity): {$buy->quantity}");
+                $this->line("     SELL количество (SELL quantity): {$sell->quantity}");
+                
+                // Закрываем позицию, даже если количество SELL меньше количества BUY
+                $buyQtySold = min($sell->quantity, $buy->quantity);
+                $sellPriceRatio = $buyQtySold / $sell->quantity;
+                $sellValueForBuy = $sell->price * $buyQtySold;
+                $sellFeeForBuy = ($sell->fee ?? 0) * $sellPriceRatio;
+
+                $pnl = (
+                    $sellValueForBuy
+                    - ($buy->price * $buyQtySold)
+                    - (($buy->fee ?? 0) * ($buyQtySold / $buy->quantity))
+                    - $sellFeeForBuy
+                );
+
+                $this->line("     Продано (Sold): {$buyQtySold}");
+                $this->line("     PnL: " . number_format($pnl, 8) . " USDT");
+
+                // ВАЖНО: Если SELL связан с BUY через parent_id, закрываем позицию независимо от количества
+                // Это нужно для случаев, когда SELL был создан для закрытия конкретного BUY
+                $buy->update([
+                    'closed_at'    => $sell->filled_at ?? now(),
+                    'realized_pnl' => $pnl,
+                ]);
+
+                $this->info("  💰 Позиция #{$buy->id} закрыта! (Position #{$buy->id} closed!) PnL: " . number_format($pnl, 8) . " USDT");
+
+                $telegram = new TelegramService();
+                $pnlEmoji = $pnl >= 0 ? '📈' : '📉';
+                $telegram->sendMessage(
+                    "{$pnlEmoji} <b>ПОЗИЦИЯ ЗАКРЫТА (POSITION CLOSED)</b>\n\n" .
+                    "Символ (Symbol): <b>{$sell->symbol}</b>\n" .
+                    "Количество продажи (Sell Quantity): <b>{$sell->quantity}</b>\n" .
+                    "Цена продажи (Sell Price): <b>\${$sell->price}</b>\n" .
+                    "PnL: <b>" . number_format($pnl, 8) . " USDT</b>\n" .
+                    "Время (Time): " . now()->format('Y-m-d H:i:s')
+                );
+
+                logger()->info('Position closed (additional check with parent_id)', [
+                    'buy_trade_id' => $buy->id,
+                    'sell_trade_id' => $sell->id,
+                    'pnl' => $pnl,
+                    'buy_price' => $buy->price,
+                    'sell_price' => $sell->price,
+                    'quantity_sold' => $buyQtySold,
+                    'buy_quantity' => $buy->quantity,
+                    'sell_quantity' => $sell->quantity,
+                ]);
                 continue; // Переходим к следующему SELL
             }
 
