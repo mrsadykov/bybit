@@ -116,6 +116,23 @@ class RunTradingBotsCommand extends Command
             | STRATEGY
             |--------------------------------------------------------------------------
             */
+            /*
+            |--------------------------------------------------------------------------
+            | POSITION STATE (определяем ДО использования в логах)
+            |--------------------------------------------------------------------------
+            */
+            $netPosition = $positionManager->getNetPosition();
+            $this->line('Чистая позиция (Net position) (BTC): ' . $netPosition);
+            
+            // Сохраняем значения для возможного использования в HOLD
+            $lastRsi = is_array($rsi) ? end($rsi) : $rsi;
+            $lastEma = is_array($ema) ? end($ema) : $ema;
+
+            /*
+            |--------------------------------------------------------------------------
+            | STRATEGY
+            |--------------------------------------------------------------------------
+            */
             $signal = RsiEmaStrategy::decide($closes, $rsiPeriod, $emaPeriod);
             $this->info("Сигнал (Signal): {$signal}");
 
@@ -125,25 +142,17 @@ class RunTradingBotsCommand extends Command
                 'symbol' => $bot->symbol,
                 'signal' => $signal,
                 'price' => $price,
-                'rsi' => round($rsi, 2),
+                'rsi' => round($lastRsi, 2),
                 'rsi_period' => $rsiPeriod,
-                'ema' => round($ema, 2),
+                'ema' => round($lastEma, 2),
                 'ema_period' => $emaPeriod,
                 'net_position' => $netPosition,
                 'can_buy' => $positionManager->canBuy(),
                 'can_sell' => $positionManager->canSell(),
                 'timeframe' => $bot->timeframe,
                 'candles_count' => count($closes),
-                'decision_reason' => $this->getDecisionReason($signal, $rsi, $ema, $price, $netPosition),
+                'decision_reason' => $this->getDecisionReason($signal, $lastRsi, $lastEma, $price, $netPosition),
             ]);
-
-            /*
-            |--------------------------------------------------------------------------
-            | POSITION STATE
-            |--------------------------------------------------------------------------
-            */
-            $netPosition = $positionManager->getNetPosition();
-            $this->line('Чистая позиция (Net position) (BTC): ' . $netPosition);
 
             /*
             |--------------------------------------------------------------------------
@@ -615,10 +624,29 @@ class RunTradingBotsCommand extends Command
 
             // HOLD сигнал - No action taken
             $this->info('Действий не предпринято (No action taken)');
-            // Берем последние значения RSI и EMA (массивы индикаторов)
-            $lastRsi = is_array($rsi) ? end($rsi) : $rsi;
-            $lastEma = is_array($ema) ? end($ema) : $ema;
-            $telegram->notifyHold($bot->symbol, $price, $signal, $lastRsi, $lastEma);
+            
+            // Логирование перед отправкой HOLD
+            logger()->info('Sending HOLD notification', [
+                'bot_id' => $bot->id,
+                'symbol' => $bot->symbol,
+                'price' => $price,
+                'signal' => $signal,
+                'rsi' => $lastRsi,
+                'ema' => $lastEma,
+            ]);
+            
+            // Используем сохраненные значения RSI и EMA
+            try {
+                $telegram->notifyHold($bot->symbol, $price, $signal, $lastRsi, $lastEma);
+                logger()->info('HOLD notification sent successfully', ['bot_id' => $bot->id]);
+            } catch (\Throwable $e) {
+                logger()->error('Failed to send HOLD notification', [
+                    'bot_id' => $bot->id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+                $this->error('Ошибка отправки HOLD уведомления (HOLD notification error): ' . $e->getMessage());
+            }
         }
 
         $this->info('Все боты обработаны (All bots processed).');
