@@ -320,6 +320,110 @@ class SyncOrdersCommand extends Command
             }
         }
 
+        // 3. ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Закрываем позиции для всех FILLED SELL ордеров,
+        // которые могли быть пропущены в основном цикле (например, если ордер уже синхронизирован)
+        $this->line('');
+        $this->info('Проверка незакрытых позиций (Checking unclosed positions)...');
+        $this->line('');
+
+        $filledSells = Trade::where('side', 'SELL')
+            ->where('status', 'FILLED')
+            ->whereNotNull('order_id')
+            ->with('bot')
+            ->get();
+
+        foreach ($filledSells as $sell) {
+            if (!$sell->bot) {
+                continue;
+            }
+
+            // Проверяем, есть ли открытые BUY позиции для этого бота
+            $openBuys = Trade::where('trading_bot_id', $sell->bot->id)
+                ->where('side', 'BUY')
+                ->where('status', 'FILLED')
+                ->whereNull('closed_at')
+                ->orderBy('filled_at', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
+
+            if ($openBuys->isEmpty()) {
+                continue; // Нет открытых позиций
+            }
+
+            // Если нет parent_id, связываем с первым открытым BUY
+            if (!$sell->parent_id) {
+                $firstBuy = $openBuys->first();
+                if ($firstBuy) {
+                    $sell->update(['parent_id' => $firstBuy->id]);
+                    $this->info("  🔗 SELL #{$sell->id} связан с BUY #{$firstBuy->id} (SELL #{$sell->id} linked to BUY #{$firstBuy->id})");
+                }
+            }
+
+            // Закрываем все BUY позиции, которые были проданы этим SELL (FIFO)
+            $remainingSellQty = $sell->quantity;
+            $closedPositions = 0;
+            $totalPnL = 0;
+
+            foreach ($openBuys as $buy) {
+                if ($remainingSellQty <= 0) {
+                    break; // Весь SELL уже распределен
+                }
+
+                // Определяем, сколько из этого BUY было продано
+                $buyQtySold = min($remainingSellQty, $buy->quantity);
+                $remainingSellQty -= $buyQtySold;
+
+                // Рассчитываем PnL для этой части
+                $sellPriceRatio = $buyQtySold / $sell->quantity;
+                $sellValueForBuy = $sell->price * $buyQtySold;
+                $sellFeeForBuy = ($sell->fee ?? 0) * $sellPriceRatio;
+
+                $pnl = (
+                    $sellValueForBuy
+                    - ($buy->price * $buyQtySold)
+                    - (($buy->fee ?? 0) * ($buyQtySold / $buy->quantity))
+                    - $sellFeeForBuy
+                );
+
+                // Если продано все количество BUY, закрываем позицию
+                if ($buyQtySold >= $buy->quantity) {
+                    $buy->update([
+                        'closed_at'    => $sell->filled_at ?? now(),
+                        'realized_pnl' => $pnl,
+                    ]);
+
+                    $closedPositions++;
+                    $totalPnL += $pnl;
+
+                    $this->info("  💰 Позиция #{$buy->id} закрыта! (Position #{$buy->id} closed!) PnL: " . number_format($pnl, 8) . " USDT");
+
+                    logger()->info('Position closed (additional check)', [
+                        'buy_trade_id' => $buy->id,
+                        'sell_trade_id' => $sell->id,
+                        'pnl' => $pnl,
+                        'buy_price' => $buy->price,
+                        'sell_price' => $sell->price,
+                        'quantity_sold' => $buyQtySold,
+                    ]);
+                }
+            }
+
+            // Отправляем уведомление в Telegram, если закрыты позиции
+            if ($closedPositions > 0) {
+                $telegram = new TelegramService();
+                $pnlEmoji = $totalPnL >= 0 ? '📈' : '📉';
+                $telegram->sendMessage(
+                    "{$pnlEmoji} <b>ПОЗИЦИЯ(И) ЗАКРЫТА(Ы) (POSITION(S) CLOSED)</b>\n\n" .
+                    "Символ (Symbol): <b>{$sell->symbol}</b>\n" .
+                    "Количество продажи (Sell Quantity): <b>{$sell->quantity}</b>\n" .
+                    "Цена продажи (Sell Price): <b>\${$sell->price}</b>\n" .
+                    "Закрытых позиций (Closed Positions): <b>{$closedPositions}</b>\n" .
+                    "Общий PnL (Total PnL): <b>" . number_format($totalPnL, 8) . " USDT</b>\n" .
+                    "Время (Time): " . now()->format('Y-m-d H:i:s')
+                );
+            }
+        }
+
         $this->line('');
         $this->info('Итоги синхронизации (Sync summary):');
         $this->line("  ✅ Синхронизировано (Synced): {$synced}");
