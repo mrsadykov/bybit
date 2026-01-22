@@ -25,17 +25,24 @@ run_cmd() {
     return 0
 }
 
-# Проверка и создание директории логов
-mkdir -p "$(dirname "${LOG_FILE}")" 2>/dev/null || true
-touch "${LOG_FILE}" 2>/dev/null || true
-
-log "🚀 Запуск проверки обновлений (Starting update check)..."
-
 # Переход в директорию проекта
 if ! cd "${DEPLOY_PATH}" 2>/dev/null; then
-    log "❌ Ошибка: Не удалось перейти в директорию ${DEPLOY_PATH}"
+    echo "[${DATE}] ❌ Ошибка: Не удалось перейти в директорию ${DEPLOY_PATH}" >&2
     exit 1
 fi
+
+# КРИТИЧНО: Установка прав доступа ДО любых операций Laravel
+# Создание необходимых директорий с правильными правами
+log "🔐 Установка прав доступа для storage и bootstrap/cache (до операций Laravel)..."
+sudo mkdir -p "${DEPLOY_PATH}/storage/logs" "${DEPLOY_PATH}/storage/framework/cache" "${DEPLOY_PATH}/storage/framework/sessions" "${DEPLOY_PATH}/storage/framework/views" "${DEPLOY_PATH}/bootstrap/cache" 2>/dev/null || true
+sudo chown -R www-data:www-data "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" 2>/dev/null || true
+sudo chmod -R 775 "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" 2>/dev/null || true
+# Убеждаемся, что файлы логов доступны для записи
+sudo touch "${LOG_FILE}" 2>/dev/null || true
+sudo chown www-data:www-data "${LOG_FILE}" 2>/dev/null || true
+sudo chmod 664 "${LOG_FILE}" 2>/dev/null || true
+
+log "🚀 Запуск проверки обновлений (Starting update check)..."
 
 # Получение изменений без обновления
 if ! run_cmd git fetch origin --quiet; then
@@ -67,10 +74,10 @@ if ! run_cmd git pull origin main || ! run_cmd git pull origin main; then
     exit 1
 fi
 
-# Установка прав доступа для storage и bootstrap/cache
-log "🔐 Установка прав доступа для storage и bootstrap/cache..."
-run_cmd sudo chown -R www-data:www-data "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" || true
-run_cmd sudo chmod -R 775 "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" || true
+# Повторная установка прав доступа после git pull (на случай если права сбросились)
+log "🔐 Повторная установка прав доступа для storage и bootstrap/cache..."
+sudo chown -R www-data:www-data "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" 2>/dev/null || true
+sudo chmod -R 775 "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" 2>/dev/null || true
 
 # Сохраняем список измененных файлов
 CHANGED_FILES=$(git diff --name-only HEAD@{1} HEAD 2>/dev/null || echo "")
@@ -99,17 +106,27 @@ if echo "$CHANGED_FILES" | grep -q 'database/migrations/'; then
     run_cmd php artisan migrate --force --quiet
 fi
 
-# Очистка кэша
+# Очистка кэша (ВСЕГДА, чтобы избежать проблем с устаревшим кэшем)
 log "🧹 Очистка кэша..."
 run_cmd php artisan config:clear --quiet
 run_cmd php artisan cache:clear --quiet
 run_cmd php artisan view:clear --quiet
 run_cmd php artisan route:clear --quiet
 
+# Если изменились роуты или контроллеры - обязательно пересоздаем кэш роутов
+if echo "$CHANGED_FILES" | grep -E -q '(routes/|app/Http/Controllers/)'; then
+    log "🔄 Обнаружены изменения в роутах/контроллерах, пересоздаю кэш роутов..."
+    run_cmd php artisan route:clear --quiet
+    run_cmd php artisan route:cache --quiet
+fi
+
 # Оптимизация
 log "⚙️  Оптимизация..."
 run_cmd php artisan config:cache --quiet
-run_cmd php artisan route:cache --quiet
+# Кэш роутов создаем только если не создали выше
+if ! echo "$CHANGED_FILES" | grep -E -q '(routes/|app/Http/Controllers/)'; then
+    run_cmd php artisan route:cache --quiet
+fi
 run_cmd php artisan view:cache --quiet
 
 log "✅ Деплой завершен успешно!"

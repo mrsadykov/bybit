@@ -1,126 +1,140 @@
-# 🔐 Исправление проблем с правами доступа
+# 🔧 Исправление проблем после деплоя
 
-## Проблема: Permission denied при записи в лог-файлы
+## Проблема 1: Permission denied для storage/logs
 
-### Симптомы
-
-При запуске команд Laravel (например, `php artisan bots:run`) появляется ошибка:
-
-```
-UnexpectedValueException
-vendor/monolog/monolog/src/Monolog/Handler/StreamHandler.php:164
-The stream or file "/var/www/trading-bot/storage/logs/laravel-2026-01-18.log" 
-could not be opened in append mode: Failed to open stream: Permission denied
-```
-
-### Причина
-
-Laravel пытается записать лог-файл, но веб-сервер (PHP-FPM, обычно работает от пользователя `www-data`) не имеет прав на запись в директорию `storage/logs/`.
-
-### Решение
+### Быстрое исправление на сервере:
 
 ```bash
+# Подключитесь к серверу
+ssh root@89.104.70.142
+
+# Перейдите в директорию проекта
 cd /var/www/trading-bot
 
-# 1. Установка правильного владельца для storage
-sudo chown -R www-data:www-data storage/
+# Установите правильные права доступа
+sudo chown -R www-data:www-data storage bootstrap/cache
+sudo chmod -R 775 storage bootstrap/cache
 
-# 2. Установка прав на запись (775 = владелец и группа могут читать/писать/выполнять)
-sudo chmod -R 775 storage/
+# Убедитесь, что директории существуют
+sudo mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
 
-# 3. То же самое для bootstrap/cache (если используется)
-sudo chown -R www-data:www-data bootstrap/cache/
-sudo chmod -R 775 bootstrap/cache/
+# Установите права для созданных директорий
+sudo chown -R www-data:www-data storage bootstrap/cache
+sudo chmod -R 775 storage bootstrap/cache
+
+# Проверьте права
+ls -la storage/logs/
 ```
 
-### Альтернативное решение (если 775 не работает)
+### Если проблема сохраняется:
 
 ```bash
-# Более широкие права (755 = владелец может все, остальные только чтение/выполнение)
-sudo chmod -R 755 storage/
-sudo chmod -R 755 bootstrap/cache/
+# Проверьте владельца веб-сервера
+ps aux | grep -E '(apache|httpd|nginx|php-fpm)' | head -1
+
+# Если используется другой пользователь (не www-data), замените www-data на нужного
+# Например, для nginx может быть nginx, для apache - apache или www-data
+
+# Для nginx:
+sudo chown -R nginx:nginx storage bootstrap/cache
+sudo chmod -R 775 storage bootstrap/cache
+
+# Для apache:
+sudo chown -R apache:apache storage bootstrap/cache
+sudo chmod -R 775 storage bootstrap/cache
 ```
 
-### Проверка решения
+## Проблема 2: Route [bots.index] not defined
+
+### Исправление:
 
 ```bash
-# Проверка владельца и прав
-ls -la storage/ | head -5
+# На сервере
+cd /var/www/trading-bot
 
-# Должно показать:
-# drwxrwxr-x ... www-data www-data ... storage/
-# drwxrwxr-x ... www-data www-data ... storage/logs/
+# Очистите кеш маршрутов
+php artisan route:clear
 
-# Попытка создать тестовый файл (должна пройти успешно)
-sudo -u www-data touch storage/logs/test.log
-sudo rm storage/logs/test.log
+# Пересоздайте кеш маршрутов
+php artisan route:cache
 
-# Если команда выше выполнилась без ошибок, права настроены правильно
+# Если проблема сохраняется, очистите весь кеш
+php artisan config:clear
+php artisan cache:clear
+php artisan view:clear
+php artisan route:clear
+
+# Пересоздайте кеш
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
 ```
 
-### Предотвращение проблемы при деплое
+### Проверка маршрутов:
 
-Добавьте эти команды в скрипт деплоя или выполняйте после каждого `git pull`:
+```bash
+# Проверьте, что маршрут существует
+php artisan route:list | grep bots.index
+
+# Должен показать что-то вроде:
+# GET|HEAD  bots ................ bots.index › BotController@index
+```
+
+## Полное исправление (все проблемы сразу):
+
+```bash
+# На сервере
+ssh root@89.104.70.142
+cd /var/www/trading-bot
+
+# 1. Установка прав доступа
+sudo mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
+sudo chown -R www-data:www-data storage bootstrap/cache
+sudo chmod -R 775 storage bootstrap/cache
+
+# 2. Очистка и пересоздание кеша
+php artisan config:clear
+php artisan cache:clear
+php artisan view:clear
+php artisan route:clear
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+# 3. Проверка
+php artisan route:list | grep bots
+ls -la storage/logs/
+```
+
+## Автоматическое исправление через скрипт
+
+Создайте файл `fix-permissions.sh` на сервере:
 
 ```bash
 #!/bin/bash
 cd /var/www/trading-bot
 
-# Создание директорий, если их нет
-mkdir -p storage/logs
-mkdir -p storage/framework/{sessions,views,cache}
-mkdir -p bootstrap/cache
+echo "🔐 Установка прав доступа..."
+sudo mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache
+sudo chown -R www-data:www-data storage bootstrap/cache
+sudo chmod -R 775 storage bootstrap/cache
 
-# Установка прав
-chown -R www-data:www-data storage bootstrap/cache
-chmod -R 775 storage bootstrap/cache
+echo "🧹 Очистка кеша..."
+php artisan config:clear
+php artisan cache:clear
+php artisan view:clear
+php artisan route:clear
+
+echo "⚙️  Пересоздание кеша..."
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+echo "✅ Готово!"
 ```
 
-### Проверка пользователя PHP-FPM
-
-Если проблема сохраняется, убедитесь, что PHP-FPM работает от пользователя `www-data`:
-
+Затем запустите:
 ```bash
-# Проверка пользователя PHP-FPM
-ps aux | grep php-fpm | head -1
-
-# Проверка конфигурации PHP-FPM
-grep "user\|group" /etc/php/8.2/fpm/pool.d/www.conf
-
-# Должно быть:
-# user = www-data
-# group = www-data
-
-# Если другой пользователь, замените www-data на нужного в командах выше
+chmod +x fix-permissions.sh
+./fix-permissions.sh
 ```
-
-### Дополнительные проверки
-
-```bash
-# Проверка существования директорий
-ls -la storage/
-ls -la storage/logs/
-ls -la bootstrap/cache/
-
-# Проверка прав на конкретный файл
-ls -la storage/logs/laravel-*.log 2>/dev/null | head -1
-
-# Если файл существует, проверьте его права
-# Должно быть: -rw-rw-r-- ... www-data www-data
-```
-
-### Быстрое исправление (если проблема уже есть)
-
-```bash
-cd /var/www/trading-bot
-sudo chown -R www-data:www-data storage/ bootstrap/cache/
-sudo chmod -R 775 storage/ bootstrap/cache/
-sudo chmod -R 755 storage/ bootstrap/cache/  # если 775 не работает
-```
-
----
-
-## 📚 См. также
-
-- [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) - Полное руководство по деплою
-- [SERVER_SETUP.md](./SERVER_SETUP.md) - Настройка сервера

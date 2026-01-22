@@ -15,15 +15,22 @@ echo "🚀 Автоматический деплой запущен (Auto-deploy
 # Переход в рабочую директорию
 cd "${DEPLOY_PATH}" || exit 1
 
+# КРИТИЧНО: Установка прав доступа ДО любых операций Laravel
+# Создание необходимых директорий с правильными правами
+echo "🔐 Установка прав доступа для storage и bootstrap/cache (до операций Laravel)..."
+sudo mkdir -p "${DEPLOY_PATH}/storage/logs" "${DEPLOY_PATH}/storage/framework/cache" "${DEPLOY_PATH}/storage/framework/sessions" "${DEPLOY_PATH}/storage/framework/views" "${DEPLOY_PATH}/bootstrap/cache" 2>/dev/null || true
+sudo chown -R www-data:www-data "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" 2>/dev/null || true
+sudo chmod -R 775 "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" 2>/dev/null || true
+
 # Получение последних изменений
 echo "📥 Получение изменений из Git..."
 git --git-dir="${GIT_DIR}" --work-tree="${DEPLOY_PATH}" checkout -f main || \
 git --git-dir="${GIT_DIR}" --work-tree="${DEPLOY_PATH}" checkout -f master
 
-# Установка прав доступа для storage и bootstrap/cache
-echo "🔐 Установка прав доступа для storage и bootstrap/cache..."
-sudo chown -R www-data:www-data "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" || true
-sudo chmod -R 775 "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" || true
+# Повторная установка прав доступа после checkout (на случай если права сбросились)
+echo "🔐 Повторная установка прав доступа для storage и bootstrap/cache..."
+sudo chown -R www-data:www-data "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" 2>/dev/null || true
+sudo chmod -R 775 "${DEPLOY_PATH}/storage" "${DEPLOY_PATH}/bootstrap/cache" 2>/dev/null || true
 
 # Установка зависимостей Composer
 echo "📦 Установка зависимостей Composer..."
