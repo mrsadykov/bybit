@@ -12,22 +12,27 @@
             @if(!empty($accountBalances))
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-4">
                 <div class="p-4">
-                    <h3 class="text-lg font-semibold mb-3">💰 Балансы аккаунтов</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-semibold text-gray-900">💰 Балансы аккаунтов</h3>
+                        @if($totalBalanceUsdt > 0)
+                            <span class="text-lg font-bold text-indigo-600">{{ number_format($totalBalanceUsdt, 2) }} USDT</span>
+                        @endif
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         @foreach($accountBalances as $account)
-                        <div class="border rounded-lg p-3">
+                        <div class="border border-gray-200 rounded-lg p-3 bg-gray-50">
                             <div class="flex justify-between items-center mb-2">
-                                <span class="font-semibold text-gray-700">{{ $account['exchange'] }}</span>
-                                <span class="text-lg font-bold {{ $account['total_usdt'] > 0 ? 'text-green-600' : 'text-gray-500' }}">
+                                <span class="text-sm font-semibold text-gray-700">{{ $account['exchange'] }}</span>
+                                <span class="text-base font-bold {{ $account['total_usdt'] > 0 ? 'text-green-600' : 'text-gray-500' }}">
                                     {{ number_format($account['total_usdt'], 2) }} USDT
                                 </span>
                             </div>
-                            <div class="text-xs text-gray-500 space-y-1">
+                            <div class="space-y-1 mt-2">
                                 @foreach($account['balances'] as $coin => $amount)
                                     @if($amount > 0.00000001)
-                                        <div class="flex justify-between">
-                                            <span>{{ $coin }}:</span>
-                                            <span class="font-medium">{{ number_format($amount, 8) }}</span>
+                                        <div class="flex justify-between items-center text-xs">
+                                            <span class="text-gray-600">{{ $coin }}:</span>
+                                            <span class="font-medium text-gray-900">{{ number_format($amount, 8) }}</span>
                                         </div>
                                     @endif
                                 @endforeach
@@ -35,69 +40,61 @@
                         </div>
                         @endforeach
                     </div>
-                    @if($totalBalanceUsdt > 0)
-                        <div class="mt-3 pt-3 border-t border-gray-200">
-                            <div class="flex justify-between items-center">
-                                <span class="font-semibold text-gray-700">Общий баланс:</span>
-                                <span class="text-xl font-bold text-indigo-600">{{ number_format($totalBalanceUsdt, 2) }} USDT</span>
-                            </div>
-                        </div>
-                    @endif
                 </div>
             </div>
             @endif
 
             <!-- Ключевые метрики (компактно) -->
-            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
                     <div class="p-3">
                         <div class="text-xs text-gray-500 mb-1">Ботов</div>
-                        <div class="text-xl font-bold">{{ $totalBots }}</div>
-                        <div class="text-xs text-gray-400 mt-1">Активных: {{ $activeBots }}</div>
+                        <div class="text-xl font-bold text-gray-900">{{ $totalBots }}</div>
+                        <div class="text-xs text-gray-500 mt-1">Активных: <span class="font-semibold text-green-600">{{ $activeBots }}</span></div>
                     </div>
                 </div>
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
                     <div class="p-3">
                         <div class="text-xs text-gray-500 mb-1">Сделок</div>
-                        <div class="text-xl font-bold">{{ $totalTrades }}</div>
-                        <div class="text-xs text-gray-400 mt-1">Выполнено: {{ $filledTrades }}</div>
+                        <div class="text-xl font-bold text-gray-900">{{ $totalTrades }}</div>
+                        <div class="text-xs text-gray-500 mt-1">Выполнено: <span class="font-semibold">{{ $filledTrades }}</span></div>
                     </div>
                 </div>
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
                     <div class="p-3">
                         <div class="text-xs text-gray-500 mb-1">Общий PnL</div>
                         <div class="text-xl font-bold {{ $totalPnL >= 0 ? 'text-green-600' : 'text-red-600' }}">
                             {{ number_format($totalPnL, 4) }} USDT
                         </div>
                         @if($closedPositionsCount > 0)
-                            <div class="text-xs text-gray-400 mt-1">Win Rate: {{ $winRate }}%</div>
+                            <div class="text-xs text-gray-500 mt-1">Win Rate: <span class="font-semibold">{{ $winRate }}%</span></div>
                         @endif
                     </div>
                 </div>
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
                     <div class="p-3">
                         <div class="text-xs text-gray-500 mb-1">Прибыльных</div>
                         <div class="text-xl font-bold text-green-600">{{ $winningTrades }}</div>
-                        <div class="text-xs text-gray-400 mt-1">Убыточных: {{ $losingTrades }}</div>
+                        <div class="text-xs text-gray-500 mt-1">Убыточных: <span class="font-semibold text-red-600">{{ $losingTrades }}</span></div>
                     </div>
                 </div>
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
                     <div class="p-3">
                         <div class="text-xs text-gray-500 mb-1">Открытых</div>
                         <div class="text-xl font-bold text-blue-600">{{ $openPositions->count() }}</div>
-                        <div class="text-xs text-gray-400 mt-1">позиций</div>
+                        <div class="text-xs text-gray-500 mt-1">позиций</div>
                     </div>
                 </div>
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg border border-gray-200">
                     <div class="p-3">
                         <div class="text-xs text-gray-500 mb-1">Profit Factor</div>
                         <div class="text-xl font-bold {{ $profitFactor >= 1.5 ? 'text-green-600' : ($profitFactor >= 1 ? 'text-yellow-600' : 'text-red-600') }}">
                             {{ number_format($profitFactor, 2) }}
                         </div>
-                        <div class="text-xs text-gray-400 mt-1">
-                            @if($profitFactor >= 1.5) Отлично
-                            @elseif($profitFactor >= 1) Хорошо
-                            @else Требует внимания
+                        <div class="text-xs text-gray-500 mt-1">
+                            @if($profitFactor >= 1.5) <span class="font-semibold text-green-600">Отлично</span>
+                            @elseif($profitFactor >= 1) <span class="font-semibold text-yellow-600">Хорошо</span>
+                            @else <span class="font-semibold text-red-600">Требует внимания</span>
                             @endif
                         </div>
                     </div>
