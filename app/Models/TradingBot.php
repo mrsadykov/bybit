@@ -14,6 +14,8 @@ class TradingBot extends Model
         'symbol',
         'timeframe',
         'strategy',
+        'rsi_period',
+        'ema_period',
         'position_size',
         'stop_loss_percent',
         'take_profit_percent',

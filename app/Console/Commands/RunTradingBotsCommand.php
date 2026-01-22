@@ -101,18 +101,22 @@ class RunTradingBotsCommand extends Command
             | INDICATORS
             |--------------------------------------------------------------------------
             */
-            $rsi = RsiIndicator::calculate($closes);
-            $ema = EmaIndicator::calculate($closes, 20);
+            // Получаем периоды из БД или используем значения по умолчанию
+            $rsiPeriod = $bot->rsi_period ?? 17;
+            $emaPeriod = $bot->ema_period ?? 10;
 
-            $this->line('RSI: ' . round($rsi, 2));
-            $this->line('EMA: ' . round($ema, 2));
+            $rsi = RsiIndicator::calculate($closes, $rsiPeriod);
+            $ema = EmaIndicator::calculate($closes, $emaPeriod);
+
+            $this->line('RSI (' . $rsiPeriod . '): ' . round($rsi, 2));
+            $this->line('EMA (' . $emaPeriod . '): ' . round($ema, 2));
 
             /*
             |--------------------------------------------------------------------------
             | STRATEGY
             |--------------------------------------------------------------------------
             */
-            $signal = RsiEmaStrategy::decide($closes);
+            $signal = RsiEmaStrategy::decide($closes, $rsiPeriod, $emaPeriod);
             $this->info("Сигнал (Signal): {$signal}");
 
             /*

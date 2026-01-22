@@ -7,10 +7,14 @@ use App\Trading\Indicators\RsiIndicator;
 
 class RsiEmaStrategy
 {
-    public static function decide(array $closes): string
+    public static function decide(array $closes, ?int $rsiPeriod = null, ?int $emaPeriod = null): string
     {
-        $rsi = RsiIndicator::calculate($closes, 17);
-        $ema = EmaIndicator::calculate($closes, 10);
+        // Значения по умолчанию (для обратной совместимости)
+        $rsiPeriod = $rsiPeriod ?? 17;
+        $emaPeriod = $emaPeriod ?? 10;
+
+        $rsi = RsiIndicator::calculate($closes, $rsiPeriod);
+        $ema = EmaIndicator::calculate($closes, $emaPeriod);
 
         $currentPrice = end($closes);
 

@@ -22,8 +22,12 @@ class RecoverBybitTradesCommand extends Command
         $symbolFilter = $this->option('symbol');
         $getAllOrders = $this->option('all');
 
+        // Фильтруем только боты с Bybit аккаунтами
         $bots = TradingBot::with('exchangeAccount')
             ->where('is_active', true)
+            ->whereHas('exchangeAccount', function ($query) {
+                $query->where('exchange', 'bybit');
+            })
             ->get();
 
         if ($bots->isEmpty()) {
@@ -35,7 +39,13 @@ class RecoverBybitTradesCommand extends Command
         if ($getAllOrders) {
             $bot = $bots->first();
             if (!$bot || !$bot->exchangeAccount) {
-                $this->error('No active bot with exchange account found');
+                $this->error('No active Bybit bot with exchange account found');
+                return self::FAILURE;
+            }
+            
+            // Проверяем, что это действительно Bybit аккаунт
+            if ($bot->exchangeAccount->exchange !== 'bybit') {
+                $this->error("Bot #{$bot->id} uses {$bot->exchangeAccount->exchange} exchange, not Bybit. Use appropriate recovery command.");
                 return self::FAILURE;
             }
             
@@ -87,6 +97,12 @@ class RecoverBybitTradesCommand extends Command
 
             if (! $bot->exchangeAccount) {
                 $this->warn("Bot #{$bot->id}: no exchange account");
+                continue;
+            }
+
+            // Проверяем, что это Bybit аккаунт
+            if ($bot->exchangeAccount->exchange !== 'bybit') {
+                $this->warn("Bot #{$bot->id}: uses {$bot->exchangeAccount->exchange} exchange, skipping (use appropriate recovery command)");
                 continue;
             }
 

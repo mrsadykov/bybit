@@ -1,0 +1,202 @@
+<x-app-layout>
+    <x-slot name="header">
+        <div class="flex justify-between items-center">
+            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+                {{ __('bots.bot_number', ['id' => $bot->id]) }} - {{ $bot->symbol }}
+            </h2>
+            <div class="flex gap-2">
+                <a href="{{ route('bots.edit', $bot) }}" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded text-sm">
+                    {{ __('bots.edit') }}
+                </a>
+                <a href="{{ route('bots.index') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm">
+                    {{ __('bots.back_to_list') }}
+                </a>
+            </div>
+        </div>
+    </x-slot>
+
+    <div class="py-12">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            @if(session('success'))
+                <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+                    <span class="block sm:inline">{{ session('success') }}</span>
+                </div>
+            @endif
+
+            <!-- Статистика -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <div class="text-sm text-gray-500 mb-1">{{ __('bots.total_trades') }}</div>
+                        <div class="text-3xl font-bold">{{ $stats['total_trades'] }}</div>
+                        <div class="text-xs text-gray-400 mt-2">{{ __('bots.filled_trades') }}: {{ $stats['filled_trades'] }}</div>
+                    </div>
+                </div>
+
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <div class="text-sm text-gray-500 mb-1">{{ __('bots.total_pnl') }}</div>
+                        <div class="text-3xl font-bold {{ $stats['total_pnl'] >= 0 ? 'text-green-600' : 'text-red-600' }}">
+                            {{ number_format($stats['total_pnl'], 8) }} USDT
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <div class="text-sm text-gray-500 mb-1">{{ __('bots.win_rate') }}</div>
+                        <div class="text-3xl font-bold">{{ $stats['win_rate'] }}%</div>
+                        <div class="text-xs text-gray-400 mt-2">
+                            {{ $stats['winning_trades'] }} {{ __('bots.winning_trades') }} / {{ $stats['losing_trades'] }} {{ __('bots.losing_trades') }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6">
+                        <div class="text-sm text-gray-500 mb-1">{{ __('bots.status') }}</div>
+                        <div class="text-3xl font-bold">
+                            @if($bot->is_active)
+                                <span class="text-green-600">{{ __('bots.active') }}</span>
+                            @else
+                                <span class="text-gray-600">{{ __('bots.inactive') }}</span>
+                            @endif
+                        </div>
+                        @if($bot->dry_run)
+                            <div class="text-xs text-blue-600 mt-2">{{ __('bots.dry_run') }}</div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <!-- Информация о боте -->
+            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
+                <div class="p-6">
+                    <h3 class="text-lg font-semibold mb-4">{{ __('bots.bot_settings') }}</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <div class="text-sm text-gray-500">{{ __('bots.symbol') }}</div>
+                            <div class="font-medium">{{ $bot->symbol }}</div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-500">{{ __('bots.timeframe') }}</div>
+                            <div class="font-medium">{{ $bot->timeframe }}</div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-500">{{ __('bots.strategy') }}</div>
+                            <div class="font-medium">{{ $bot->strategy }}</div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-500">{{ __('bots.position_size') }}</div>
+                            <div class="font-medium">{{ number_format($bot->position_size, 8) }} USDT</div>
+                        </div>
+                        @if($bot->rsi_period)
+                            <div>
+                                <div class="text-sm text-gray-500">{{ __('bots.rsi_period') }}</div>
+                                <div class="font-medium">{{ $bot->rsi_period }}</div>
+                            </div>
+                        @endif
+                        @if($bot->ema_period)
+                            <div>
+                                <div class="text-sm text-gray-500">{{ __('bots.ema_period') }}</div>
+                                <div class="font-medium">{{ $bot->ema_period }}</div>
+                            </div>
+                        @endif
+                        @if($bot->stop_loss_percent)
+                            <div>
+                                <div class="text-sm text-gray-500">{{ __('bots.stop_loss') }}</div>
+                                <div class="font-medium text-red-600">-{{ number_format($bot->stop_loss_percent, 2) }}%</div>
+                            </div>
+                        @endif
+                        @if($bot->take_profit_percent)
+                            <div>
+                                <div class="text-sm text-gray-500">{{ __('bots.take_profit') }}</div>
+                                <div class="font-medium text-green-600">+{{ number_format($bot->take_profit_percent, 2) }}%</div>
+                            </div>
+                        @endif
+                        <div>
+                            <div class="text-sm text-gray-500">{{ __('bots.exchange') }}</div>
+                            <div class="font-medium">{{ strtoupper($bot->exchangeAccount->exchange ?? 'N/A') }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- График PnL (пока простой список, потом можно добавить Chart.js) -->
+            @if($dailyPnL->count() > 0)
+            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
+                <div class="p-6">
+                    <h3 class="text-lg font-semibold mb-4">{{ __('bots.daily_pnl') }}</h3>
+                    <div class="space-y-2">
+                        @foreach($dailyPnL as $day)
+                            <div class="flex justify-between items-center p-2 {{ $day['pnl'] >= 0 ? 'bg-green-50' : 'bg-red-50' }}">
+                                <span class="text-sm font-medium">{{ $day['date'] }}</span>
+                                <span class="text-sm font-bold {{ $day['pnl'] >= 0 ? 'text-green-600' : 'text-red-600' }}">
+                                    {{ number_format($day['pnl'], 8) }} USDT
+                                </span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+            @endif
+
+            <!-- Последние сделки -->
+            @if($bot->trades->count() > 0)
+            <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="p-6">
+                    <h3 class="text-lg font-semibold mb-4">{{ __('bots.recent_trades') }}</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ __('bots.date') }}</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ __('bots.side') }}</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ __('bots.quantity') }}</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ __('bots.price') }}</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ __('bots.status') }}</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{{ __('bots.pnl') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                @foreach($bot->trades as $trade)
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ $trade->created_at->format('Y-m-d H:i') }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full {{ $trade->side === 'BUY' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
+                                            {{ $trade->side }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ number_format($trade->quantity, 8) }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        ${{ number_format($trade->price, 2) }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="px-2 py-1 text-xs font-semibold rounded-full 
+                                            {{ $trade->status === 'FILLED' ? 'bg-green-100 text-green-800' : 
+                                               ($trade->status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800') }}">
+                                            {{ $trade->status }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium {{ $trade->realized_pnl > 0 ? 'text-green-600' : ($trade->realized_pnl < 0 ? 'text-red-600' : 'text-gray-500') }}">
+                                        @if($trade->realized_pnl)
+                                            {{ number_format($trade->realized_pnl, 8) }} USDT
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            @endif
+        </div>
+    </div>
+</x-app-layout>

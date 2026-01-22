@@ -15,7 +15,9 @@ class CreateBybitTradingBotCommand extends Command
         {strategy : rsi_ema}
         {position_size : 0.00006}
         {--stop-loss= : Stop-Loss процент (например: 5.0 = продать при падении на 5%)}
-        {--take-profit= : Take-Profit процент (например: 10.0 = продать при росте на 10%)}'
+        {--take-profit= : Take-Profit процент (например: 10.0 = продать при росте на 10%)}
+        {--rsi-period= : RSI период (по умолчанию 17)}
+        {--ema-period= : EMA период (по умолчанию 10)}'
     ;
 
     /**
@@ -38,6 +40,8 @@ class CreateBybitTradingBotCommand extends Command
         $positionSize = (float) $this->argument('position_size');
         $stopLoss = $this->option('stop-loss') ? (float) $this->option('stop-loss') : null;
         $takeProfit = $this->option('take-profit') ? (float) $this->option('take-profit') : null;
+        $rsiPeriod = $this->option('rsi-period') ? (int) $this->option('rsi-period') : null;
+        $emaPeriod = $this->option('ema-period') ? (int) $this->option('ema-period') : null;
 
         // Валидация position size
         if ($positionSize <= 0) {
@@ -90,6 +94,22 @@ class CreateBybitTradingBotCommand extends Command
             }
         }
 
+        // Валидация RSI периода
+        if ($rsiPeriod !== null) {
+            if ($rsiPeriod < 2 || $rsiPeriod > 100) {
+                $this->error('RSI period must be between 2 and 100');
+                return self::FAILURE;
+            }
+        }
+
+        // Валидация EMA периода
+        if ($emaPeriod !== null) {
+            if ($emaPeriod < 2 || $emaPeriod > 200) {
+                $this->error('EMA period must be between 2 and 200');
+                return self::FAILURE;
+            }
+        }
+
         $bot = TradingBot::query()
             ->create([
                 'user_id' => $user->id,
@@ -97,6 +117,8 @@ class CreateBybitTradingBotCommand extends Command
                 'symbol' => $symbol,
                 'timeframe' => $timeframe,
                 'strategy' => $strategy,
+                'rsi_period' => $rsiPeriod,
+                'ema_period' => $emaPeriod,
                 'position_size' => $positionSize,
                 'stop_loss_percent' => $stopLoss,
                 'take_profit_percent' => $takeProfit,
@@ -108,6 +130,14 @@ class CreateBybitTradingBotCommand extends Command
         $this->info("Timeframe: {$bot->timeframe}.");
         $this->info("Strategy: {$bot->strategy}.");
         $this->info("Position size: {$bot->position_size} USDT.");
+        
+        if ($bot->rsi_period) {
+            $this->info("RSI Period: {$bot->rsi_period}.");
+        }
+        
+        if ($bot->ema_period) {
+            $this->info("EMA Period: {$bot->ema_period}.");
+        }
         
         if ($bot->stop_loss_percent) {
             $this->info("Stop-Loss: -{$bot->stop_loss_percent}%.");
