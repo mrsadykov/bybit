@@ -64,36 +64,54 @@ class CloseSmallPositionsCommand extends Command
         $toClose = [];
         $totalValue = 0;
 
-        // Группируем по ботам для получения цен
-        $bots = $openBuys->groupBy('trading_bot_id');
+        // Группируем по биржевым аккаунтам для получения цен
+        // ВАЖНО: Группируем по exchange_account_id, а не по bot_id,
+        // чтобы правильно получить цену для каждой торговой пары
+        $groupedByAccount = $openBuys->groupBy(function ($trade) {
+            return $trade->bot->exchange_account_id ?? 0;
+        });
 
-        foreach ($bots as $botId => $trades) {
-            $bot = TradingBot::with('exchangeAccount')->find($botId);
+        foreach ($groupedByAccount as $accountId => $trades) {
+            if ($accountId === 0) {
+                $this->warn("⚠️  Найдены позиции без биржевого аккаунта (Found positions without exchange account)");
+                continue;
+            }
+
+            // Получаем первый бот для получения exchange account
+            $firstTrade = $trades->first();
+            $bot = $firstTrade->bot;
             
             if (!$bot || !$bot->exchangeAccount) {
-                $this->warn("⚠️  Бот #{$botId} не найден или нет аккаунта биржи (Bot #{$botId} not found or no exchange account)");
+                $this->warn("⚠️  Бот #{$bot->id} не найден или нет аккаунта биржи (Bot #{$bot->id} not found or no exchange account)");
                 continue;
             }
 
             try {
                 $exchangeService = ExchangeServiceFactory::create($bot->exchangeAccount);
-                $currentPrice = $exchangeService->getPrice($bot->symbol);
             } catch (\Throwable $e) {
-                $this->warn("⚠️  Ошибка получения цены для {$bot->symbol}: {$e->getMessage()}");
+                $this->warn("⚠️  Ошибка создания сервиса биржи: {$e->getMessage()}");
                 continue;
             }
 
+            // Для каждой позиции получаем цену её символа
             foreach ($trades as $trade) {
-                $valueUsdt = (float) $trade->quantity * $currentPrice;
+                try {
+                    // ВАЖНО: Используем символ позиции, а не символ бота!
+                    $currentPrice = $exchangeService->getPrice($trade->symbol);
+                    $valueUsdt = (float) $trade->quantity * $currentPrice;
 
-                if ($valueUsdt < $threshold) {
-                    $toClose[] = [
-                        'trade' => $trade,
-                        'bot' => $bot,
-                        'value' => $valueUsdt,
-                        'price' => $currentPrice,
-                    ];
-                    $totalValue += $valueUsdt;
+                    if ($valueUsdt < $threshold) {
+                        $toClose[] = [
+                            'trade' => $trade,
+                            'bot' => $trade->bot,
+                            'value' => $valueUsdt,
+                            'price' => $currentPrice,
+                        ];
+                        $totalValue += $valueUsdt;
+                    }
+                } catch (\Throwable $e) {
+                    $this->warn("⚠️  Ошибка получения цены для {$trade->symbol}: {$e->getMessage()}");
+                    continue;
                 }
             }
         }
@@ -151,17 +169,18 @@ class CloseSmallPositionsCommand extends Command
                 // Опционально продать на бирже
                 if ($sellOnExchange) {
                     $exchangeService = ExchangeServiceFactory::create($bot->exchangeAccount);
-                    $baseCoin = str_replace('USDT', '', $bot->symbol);
+                    // ВАЖНО: Используем символ позиции, а не символ бота!
+                    $baseCoin = str_replace('USDT', '', $trade->symbol);
                     
                     try {
                         // Проверяем минимальный размер ордера
                         $minQuantity = $this->getMinQuantity($bot->exchangeAccount->exchange, $baseCoin);
                         
                         if ($trade->quantity >= $minQuantity) {
-                            // Продаем на бирже
-                            $exchangeService->placeMarketSell($bot->symbol, $trade->quantity);
+                            // Продаем на бирже (используем символ позиции)
+                            $exchangeService->placeMarketSellBtc($trade->symbol, $trade->quantity);
                             $soldCount++;
-                            $this->info("  ✅ Продано на бирже: {$trade->quantity} {$baseCoin}");
+                            $this->info("  ✅ Продано на бирже: {$trade->quantity} {$baseCoin} ({$trade->symbol})");
                         } else {
                             $this->warn("  ⚠️  Пропущена продажа: количество ({$trade->quantity}) меньше минимума ({$minQuantity})");
                         }
