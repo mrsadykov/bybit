@@ -185,12 +185,11 @@ class SyncOrdersCommand extends Command
                         'executed_qty' => $executedQty,
                         'price' => $executedPrice,
                     ]);
-                }
 
-                // 2. ВАЖНО: Закрываем позиции для ВСЕХ FILLED SELL ордеров, даже если они уже синхронизированы
-                // Это нужно для случаев, когда SELL связан с BUY, но позиция еще не закрыта
-                // Проверяем статус в БД, а не только на бирже
-                if (($isFilled || $trade->status === 'FILLED') && $trade->side === 'SELL' && $trade->bot) {
+                    // 2. ВАЖНО: Закрываем позиции для ВСЕХ FILLED SELL ордеров, даже если они уже синхронизированы
+                    // Это нужно для случаев, когда SELL связан с BUY, но позиция еще не закрыта
+                    // Проверяем статус в БД, а не только на бирже
+                    if (($isFilled || $trade->status === 'FILLED') && $trade->side === 'SELL' && $trade->bot) {
                         // Если нет parent_id, связываем с первым открытым BUY
                         if (!$trade->parent_id) {
                             $firstBuy = Trade::where('trading_bot_id', $trade->bot->id)
