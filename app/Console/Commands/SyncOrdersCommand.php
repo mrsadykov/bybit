@@ -337,7 +337,57 @@ class SyncOrdersCommand extends Command
                 continue;
             }
 
-            // Проверяем, есть ли открытые BUY позиции для этого бота
+            // Если SELL уже имеет parent_id, проверяем конкретный BUY
+            if ($sell->parent_id) {
+                $buy = Trade::find($sell->parent_id);
+                if ($buy && $buy->side === 'BUY' && $buy->status === 'FILLED' && !$buy->closed_at) {
+                    // Закрываем позицию, даже если количество SELL меньше количества BUY
+                    $buyQtySold = min($sell->quantity, $buy->quantity);
+                    $sellPriceRatio = $buyQtySold / $sell->quantity;
+                    $sellValueForBuy = $sell->price * $buyQtySold;
+                    $sellFeeForBuy = ($sell->fee ?? 0) * $sellPriceRatio;
+
+                    $pnl = (
+                        $sellValueForBuy
+                        - ($buy->price * $buyQtySold)
+                        - (($buy->fee ?? 0) * ($buyQtySold / $buy->quantity))
+                        - $sellFeeForBuy
+                    );
+
+                    // Закрываем позицию, если продано все количество BUY или если SELL связан с этим BUY
+                    if ($buyQtySold >= $buy->quantity) {
+                        $buy->update([
+                            'closed_at'    => $sell->filled_at ?? now(),
+                            'realized_pnl' => $pnl,
+                        ]);
+
+                        $this->info("  💰 Позиция #{$buy->id} закрыта! (Position #{$buy->id} closed!) PnL: " . number_format($pnl, 8) . " USDT");
+
+                        $telegram = new TelegramService();
+                        $pnlEmoji = $pnl >= 0 ? '📈' : '📉';
+                        $telegram->sendMessage(
+                            "{$pnlEmoji} <b>ПОЗИЦИЯ ЗАКРЫТА (POSITION CLOSED)</b>\n\n" .
+                            "Символ (Symbol): <b>{$sell->symbol}</b>\n" .
+                            "Количество продажи (Sell Quantity): <b>{$sell->quantity}</b>\n" .
+                            "Цена продажи (Sell Price): <b>\${$sell->price}</b>\n" .
+                            "PnL: <b>" . number_format($pnl, 8) . " USDT</b>\n" .
+                            "Время (Time): " . now()->format('Y-m-d H:i:s')
+                        );
+
+                        logger()->info('Position closed (additional check with parent_id)', [
+                            'buy_trade_id' => $buy->id,
+                            'sell_trade_id' => $sell->id,
+                            'pnl' => $pnl,
+                            'buy_price' => $buy->price,
+                            'sell_price' => $sell->price,
+                            'quantity_sold' => $buyQtySold,
+                        ]);
+                    }
+                }
+                continue; // Переходим к следующему SELL
+            }
+
+            // Если нет parent_id, используем FIFO логику
             $openBuys = Trade::where('trading_bot_id', $sell->bot->id)
                 ->where('side', 'BUY')
                 ->where('status', 'FILLED')
@@ -350,13 +400,11 @@ class SyncOrdersCommand extends Command
                 continue; // Нет открытых позиций
             }
 
-            // Если нет parent_id, связываем с первым открытым BUY
-            if (!$sell->parent_id) {
-                $firstBuy = $openBuys->first();
-                if ($firstBuy) {
-                    $sell->update(['parent_id' => $firstBuy->id]);
-                    $this->info("  🔗 SELL #{$sell->id} связан с BUY #{$firstBuy->id} (SELL #{$sell->id} linked to BUY #{$firstBuy->id})");
-                }
+            // Связываем с первым открытым BUY
+            $firstBuy = $openBuys->first();
+            if ($firstBuy) {
+                $sell->update(['parent_id' => $firstBuy->id]);
+                $this->info("  🔗 SELL #{$sell->id} связан с BUY #{$firstBuy->id} (SELL #{$sell->id} linked to BUY #{$firstBuy->id})");
             }
 
             // Закрываем все BUY позиции, которые были проданы этим SELL (FIFO)
