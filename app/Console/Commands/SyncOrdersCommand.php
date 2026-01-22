@@ -339,32 +339,14 @@ class SyncOrdersCommand extends Command
 
             // Если SELL уже имеет parent_id, проверяем конкретный BUY
             if ($sell->parent_id) {
-                $this->line("  🔍 Проверка SELL #{$sell->id} с parent_id={$sell->parent_id} (Checking SELL #{$sell->id} with parent_id={$sell->parent_id})...");
                 $buy = Trade::find($sell->parent_id);
                 
-                if (!$buy) {
-                    $this->warn("  ⚠️  BUY #{$sell->parent_id} не найден (BUY #{$sell->parent_id} not found)");
+                if (!$buy || $buy->side !== 'BUY' || $buy->status !== 'FILLED' || $buy->closed_at) {
+                    // Позиция уже закрыта или не найдена - пропускаем без вывода
                     continue;
                 }
                 
-                if ($buy->side !== 'BUY') {
-                    $this->warn("  ⚠️  Trade #{$sell->parent_id} не является BUY (Trade #{$sell->parent_id} is not a BUY)");
-                    continue;
-                }
-                
-                if ($buy->status !== 'FILLED') {
-                    $this->warn("  ⚠️  BUY #{$sell->parent_id} не заполнен (BUY #{$sell->parent_id} is not FILLED)");
-                    continue;
-                }
-                
-                if ($buy->closed_at) {
-                    $this->line("  ✓ BUY #{$sell->parent_id} уже закрыт (BUY #{$sell->parent_id} already closed)");
-                    continue;
-                }
-                
-                $this->info("  ✅ Найден открытый BUY #{$buy->id} (Found open BUY #{$buy->id})");
-                $this->line("     BUY количество (BUY quantity): {$buy->quantity}");
-                $this->line("     SELL количество (SELL quantity): {$sell->quantity}");
+                $this->info("  🔍 Проверка SELL #{$sell->id} → BUY #{$buy->id} (Checking SELL #{$sell->id} → BUY #{$buy->id})...");
                 
                 // Закрываем позицию, даже если количество SELL меньше количества BUY
                 $buyQtySold = min($sell->quantity, $buy->quantity);
@@ -379,7 +361,7 @@ class SyncOrdersCommand extends Command
                     - $sellFeeForBuy
                 );
 
-                $this->line("     Продано (Sold): {$buyQtySold}");
+                $this->line("     BUY: {$buy->quantity} @ \${$buy->price} | SELL: {$sell->quantity} @ \${$sell->price}");
                 $this->line("     PnL: " . number_format($pnl, 8) . " USDT");
 
                 // ВАЖНО: Если SELL связан с BUY через parent_id, закрываем позицию независимо от количества
