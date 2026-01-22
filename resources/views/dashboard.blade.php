@@ -73,6 +73,59 @@
                 </div>
             </div>
 
+            <!-- Расширенные метрики -->
+            @if($closedPositionsCount > 0)
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6 text-gray-900">
+                        <div class="text-sm text-gray-500 mb-1">Средний PnL</div>
+                        <div class="text-2xl font-bold {{ $avgPnL >= 0 ? 'text-green-600' : 'text-red-600' }}">
+                            {{ number_format($avgPnL, 4) }} USDT
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6 text-gray-900">
+                        <div class="text-sm text-gray-500 mb-1">Profit Factor</div>
+                        <div class="text-2xl font-bold {{ $profitFactor >= 1.5 ? 'text-green-600' : ($profitFactor >= 1 ? 'text-yellow-600' : 'text-red-600') }}">
+                            {{ number_format($profitFactor, 2) }}
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">
+                            @if($profitFactor >= 1.5)
+                                Отлично
+                            @elseif($profitFactor >= 1)
+                                Хорошо
+                            @else
+                                Требует внимания
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6 text-gray-900">
+                        <div class="text-sm text-gray-500 mb-1">Макс. просадка</div>
+                        <div class="text-2xl font-bold text-red-600">
+                            {{ number_format($maxDrawdown, 4) }} USDT
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-6 text-gray-900">
+                        <div class="text-sm text-gray-500 mb-1">Лучшая / Худшая</div>
+                        <div class="text-lg font-bold text-green-600">
+                            +{{ number_format($bestTrade, 4) }}
+                        </div>
+                        <div class="text-lg font-bold text-red-600">
+                            {{ number_format($worstTrade, 4) }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
+
             <!-- Открытые позиции -->
             @if($openPositions->count() > 0)
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">

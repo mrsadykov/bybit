@@ -119,6 +119,24 @@ class RunTradingBotsCommand extends Command
             $signal = RsiEmaStrategy::decide($closes, $rsiPeriod, $emaPeriod);
             $this->info("Сигнал (Signal): {$signal}");
 
+            // Детальное логирование решения стратегии
+            logger()->info('Trading bot decision', [
+                'bot_id' => $bot->id,
+                'symbol' => $bot->symbol,
+                'signal' => $signal,
+                'price' => $price,
+                'rsi' => round($rsi, 2),
+                'rsi_period' => $rsiPeriod,
+                'ema' => round($ema, 2),
+                'ema_period' => $emaPeriod,
+                'net_position' => $netPosition,
+                'can_buy' => $positionManager->canBuy(),
+                'can_sell' => $positionManager->canSell(),
+                'timeframe' => $bot->timeframe,
+                'candles_count' => count($closes),
+                'decision_reason' => $this->getDecisionReason($signal, $rsi, $ema, $price, $netPosition),
+            ]);
+
             /*
             |--------------------------------------------------------------------------
             | POSITION STATE
@@ -605,5 +623,36 @@ class RunTradingBotsCommand extends Command
 
         $this->info('Все боты обработаны (All bots processed).');
         return self::SUCCESS;
+    }
+
+    /**
+     * Получить причину решения стратегии
+     */
+    protected function getDecisionReason(string $signal, float $rsi, float $ema, float $price, float $netPosition): string
+    {
+        if ($signal === 'BUY') {
+            if ($rsi < 30 && $price > $ema) {
+                return "RSI перепродан (< 30) и цена выше EMA";
+            }
+            return "RSI: {$rsi}, EMA: {$ema}, Price: {$price}";
+        } elseif ($signal === 'SELL') {
+            if ($rsi > 70 && $price < $ema) {
+                return "RSI перекуплен (> 70) и цена ниже EMA";
+            }
+            return "RSI: {$rsi}, EMA: {$ema}, Price: {$price}";
+        } else {
+            // HOLD
+            $reasons = [];
+            if ($rsi >= 30 && $rsi <= 70) {
+                $reasons[] = "RSI в нейтральной зоне ({$rsi})";
+            }
+            if ($rsi < 30 && $price <= $ema) {
+                $reasons[] = "RSI перепродан, но цена ниже EMA";
+            }
+            if ($rsi > 70 && $price >= $ema) {
+                $reasons[] = "RSI перекуплен, но цена выше EMA";
+            }
+            return !empty($reasons) ? implode('; ', $reasons) : "Нет четкого сигнала";
+        }
     }
 }

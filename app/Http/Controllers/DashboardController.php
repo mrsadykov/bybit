@@ -49,6 +49,24 @@ class DashboardController extends Controller
             ? round(($winningTrades / $closedPositions->count()) * 100, 2) 
             : 0;
 
+        // Расширенные метрики
+        $avgPnL = $closedPositions->count() > 0 
+            ? round($totalPnL / $closedPositions->count(), 8) 
+            : 0;
+        
+        $totalProfit = $closedPositions->where('realized_pnl', '>', 0)->sum('realized_pnl');
+        $totalLoss = abs($closedPositions->where('realized_pnl', '<', 0)->sum('realized_pnl'));
+        $profitFactor = $totalLoss > 0 
+            ? round($totalProfit / $totalLoss, 2) 
+            : ($totalProfit > 0 ? 999 : 0);
+        
+        // Максимальная просадка
+        $maxDrawdown = $this->calculateMaxDrawdown($closedPositions);
+        
+        // Лучшая/худшая сделка
+        $bestTrade = $closedPositions->count() > 0 ? $closedPositions->max('realized_pnl') : 0;
+        $worstTrade = $closedPositions->count() > 0 ? $closedPositions->min('realized_pnl') : 0;
+
         // Последние сделки
         $recentTrades = Trade::whereIn('trading_bot_id', $userBotIds)
             ->with('bot')
@@ -96,7 +114,41 @@ class DashboardController extends Controller
             'recentTrades',
             'openPositions',
             'dailyPnL',
-            'closedPositionsCount'
+            'closedPositionsCount',
+            'avgPnL',
+            'profitFactor',
+            'maxDrawdown',
+            'bestTrade',
+            'worstTrade'
         ));
+    }
+
+    protected function calculateMaxDrawdown($closedPositions): float
+    {
+        if ($closedPositions->isEmpty()) {
+            return 0;
+        }
+
+        // Сортируем по дате закрытия
+        $sortedTrades = $closedPositions->sortBy('closed_at');
+        
+        $cumulativePnL = 0;
+        $peak = 0;
+        $maxDrawdown = 0;
+
+        foreach ($sortedTrades as $trade) {
+            $cumulativePnL += $trade->realized_pnl;
+            
+            if ($cumulativePnL > $peak) {
+                $peak = $cumulativePnL;
+            }
+            
+            $drawdown = $peak - $cumulativePnL;
+            if ($drawdown > $maxDrawdown) {
+                $maxDrawdown = $drawdown;
+            }
+        }
+
+        return $maxDrawdown;
     }
 }
