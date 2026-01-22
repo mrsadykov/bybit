@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\BotStatistics;
+use App\Models\ExchangeAccount;
 use App\Models\Trade;
 use App\Models\TradingBot;
+use App\Services\Exchanges\ExchangeServiceFactory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
@@ -68,13 +70,6 @@ class DashboardController extends Controller
         $bestTrade = $closedPositions->count() > 0 ? $closedPositions->max('realized_pnl') : 0;
         $worstTrade = $closedPositions->count() > 0 ? $closedPositions->min('realized_pnl') : 0;
 
-        // Последние сделки
-        $recentTrades = Trade::whereIn('trading_bot_id', $userBotIds)
-            ->with('bot')
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
-
         // Открытые позиции (BUY без закрытия)
         $openPositions = Trade::whereIn('trading_bot_id', $userBotIds)
             ->where('side', 'BUY')
@@ -82,22 +77,6 @@ class DashboardController extends Controller
             ->whereNull('closed_at')
             ->with('bot')
             ->get();
-
-        // Статистика по дням (для графика PnL)
-        $dailyPnL = Trade::whereIn('trading_bot_id', $userBotIds)
-            ->whereNotNull('closed_at')
-            ->whereNotNull('realized_pnl')
-            ->selectRaw('DATE(closed_at) as date, SUM(realized_pnl) as pnl')
-            ->groupBy('date')
-            ->orderBy('date', 'desc')
-            ->limit(30)
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'date' => $item->date,
-                    'pnl' => (float) $item->pnl,
-                ];
-            });
 
         $closedPositionsCount = $closedPositions->count();
 
@@ -113,17 +92,66 @@ class DashboardController extends Controller
             ->orderByRaw('CASE WHEN days_period = 0 THEN 0 ELSE 1 END') // Сначала 0 (все время), потом 30
             ->first();
 
-        // Статистика по каждому боту
-        $botStats = [];
-        foreach ($bots as $bot) {
-            $botStat = BotStatistics::where('trading_bot_id', $bot->id)
-                ->where('analysis_date', $today)
-                ->where('days_period', 30)
-                ->first();
+        // Получаем балансы со всех аккаунтов пользователя
+        $accountBalances = [];
+        $totalBalanceUsdt = 0;
+        
+        try {
+            $accounts = ExchangeAccount::where('user_id', $user->id)
+                ->where('is_testnet', false)
+                ->get();
             
-            if ($botStat) {
-                $botStats[$bot->id] = $botStat;
+            foreach ($accounts as $account) {
+                try {
+                    $exchangeService = ExchangeServiceFactory::create($account);
+                    
+                    if (method_exists($exchangeService, 'getAllBalances')) {
+                        $balances = $exchangeService->getAllBalances();
+                        
+                        // Получаем цену BTC для конвертации
+                        try {
+                            $btcPrice = $exchangeService->getPrice('BTCUSDT');
+                        } catch (\Throwable $e) {
+                            $btcPrice = 0;
+                        }
+                        
+                        // Конвертируем все балансы в USDT
+                        $accountTotalUsdt = 0;
+                        foreach ($balances as $coin => $amount) {
+                            if ($coin === 'USDT') {
+                                $accountTotalUsdt += $amount;
+                            } elseif ($coin === 'BTC' && $btcPrice > 0) {
+                                $accountTotalUsdt += $amount * $btcPrice;
+                            } else {
+                                // Для других монет пытаемся получить цену
+                                try {
+                                    $symbol = $coin . 'USDT';
+                                    $price = $exchangeService->getPrice($symbol);
+                                    $accountTotalUsdt += $amount * $price;
+                                } catch (\Throwable $e) {
+                                    // Игнорируем монеты, для которых нет пары USDT
+                                }
+                            }
+                        }
+                        
+                        $accountBalances[] = [
+                            'exchange' => strtoupper($account->exchange),
+                            'balances' => $balances,
+                            'total_usdt' => $accountTotalUsdt,
+                        ];
+                        
+                        $totalBalanceUsdt += $accountTotalUsdt;
+                    }
+                } catch (\Throwable $e) {
+                    // Игнорируем ошибки получения баланса
+                    logger()->warning('Failed to get balance for account', [
+                        'account_id' => $account->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
+        } catch (\Throwable $e) {
+            // Игнорируем ошибки
         }
         
         return view('dashboard', compact(
@@ -137,9 +165,7 @@ class DashboardController extends Controller
             'winningTrades',
             'losingTrades',
             'winRate',
-            'recentTrades',
             'openPositions',
-            'dailyPnL',
             'closedPositionsCount',
             'avgPnL',
             'profitFactor',
@@ -147,7 +173,8 @@ class DashboardController extends Controller
             'bestTrade',
             'worstTrade',
             'savedStats',
-            'botStats'
+            'accountBalances',
+            'totalBalanceUsdt'
         ));
     }
 
