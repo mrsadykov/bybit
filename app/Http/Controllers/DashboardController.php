@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BotStatistics;
 use App\Models\Trade;
 use App\Models\TradingBot;
 use Illuminate\Http\Request;
@@ -99,6 +100,26 @@ class DashboardController extends Controller
             });
 
         $closedPositionsCount = $closedPositions->count();
+
+        // Получаем сохраненную статистику из БД (за последние 30 дней)
+        $today = now()->format('Y-m-d');
+        $savedStats = BotStatistics::where('trading_bot_id', null) // Общая статистика
+            ->where('analysis_date', $today)
+            ->where('days_period', 30)
+            ->first();
+
+        // Статистика по каждому боту
+        $botStats = [];
+        foreach ($bots as $bot) {
+            $botStat = BotStatistics::where('trading_bot_id', $bot->id)
+                ->where('analysis_date', $today)
+                ->where('days_period', 30)
+                ->first();
+            
+            if ($botStat) {
+                $botStats[$bot->id] = $botStat;
+            }
+        }
         
         return view('dashboard', compact(
             'bots',
@@ -119,7 +140,9 @@ class DashboardController extends Controller
             'profitFactor',
             'maxDrawdown',
             'bestTrade',
-            'worstTrade'
+            'worstTrade',
+            'savedStats',
+            'botStats'
         ));
     }
 

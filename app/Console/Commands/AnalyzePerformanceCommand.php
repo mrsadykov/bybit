@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\BotStatistics;
 use App\Models\Trade;
 use App\Models\TradingBot;
 use Illuminate\Console\Command;
@@ -48,6 +49,7 @@ class AnalyzePerformanceCommand extends Command
         }
 
         $allResults = [];
+        $analysisDate = now()->format('Y-m-d');
 
         foreach ($bots as $bot) {
             $this->line(str_repeat('=', 60));
@@ -58,6 +60,9 @@ class AnalyzePerformanceCommand extends Command
             $allResults[] = array_merge(['bot_id' => $bot->id, 'symbol' => $bot->symbol], $stats);
 
             $this->displayStats($stats);
+
+            // Сохраняем статистику в БД
+            $this->saveStatistics($bot->id, $stats, $analysisDate, $days);
             $this->line('');
         }
 
@@ -69,6 +74,9 @@ class AnalyzePerformanceCommand extends Command
 
             $overallStats = $this->calculateOverallStats($allResults);
             $this->displayStats($overallStats, true);
+
+            // Сохраняем общую статистику (без bot_id)
+            $this->saveStatistics(null, $overallStats, $analysisDate, $days);
         }
 
         // Экспорт в CSV
@@ -299,5 +307,33 @@ class AnalyzePerformanceCommand extends Command
         }
 
         fclose($file);
+    }
+
+    protected function saveStatistics(?int $botId, array $stats, string $analysisDate, int $days): void
+    {
+        // Обновляем или создаем запись за сегодня
+        BotStatistics::updateOrCreate(
+            [
+                'trading_bot_id' => $botId,
+                'analysis_date' => $analysisDate,
+            ],
+            [
+                'days_period' => $days,
+                'total_trades' => $stats['total_trades'],
+                'winning_trades' => $stats['winning_trades'],
+                'losing_trades' => $stats['losing_trades'],
+                'win_rate' => $stats['win_rate'],
+                'total_pnl' => $stats['total_pnl'],
+                'avg_pnl' => $stats['avg_pnl'] ?? 0,
+                'avg_win' => $stats['avg_win'] ?? 0,
+                'avg_loss' => $stats['avg_loss'] ?? 0,
+                'profit_factor' => $stats['profit_factor'] ?? 0,
+                'max_drawdown' => $stats['max_drawdown'] ?? 0,
+                'best_trade' => $stats['best_trade'] ?? 0,
+                'worst_trade' => $stats['worst_trade'] ?? 0,
+                'avg_hold_time_hours' => $stats['avg_hold_time_hours'] ?? 0,
+                'trades_per_day' => $stats['trades_per_day'] ?? 0,
+            ]
+        );
     }
 }

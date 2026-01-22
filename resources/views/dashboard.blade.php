@@ -73,6 +73,40 @@
                 </div>
             </div>
 
+            <!-- Сохраненная статистика (из cron) -->
+            @if($savedStats)
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-lg font-semibold text-blue-900">
+                        📊 Статистика за 30 дней (обновлено: {{ $savedStats->updated_at->format('Y-m-d H:i') }})
+                    </h3>
+                    <span class="text-xs text-blue-600">Автоматически обновляется каждый день в 00:00</span>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                        <div class="text-sm text-blue-700 mb-1">Win Rate</div>
+                        <div class="text-2xl font-bold text-blue-900">{{ number_format($savedStats->win_rate, 2) }}%</div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-blue-700 mb-1">Profit Factor</div>
+                        <div class="text-2xl font-bold {{ $savedStats->profit_factor >= 1.5 ? 'text-green-600' : ($savedStats->profit_factor >= 1 ? 'text-yellow-600' : 'text-red-600') }}">
+                            {{ number_format($savedStats->profit_factor, 2) }}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-blue-700 mb-1">Сделок</div>
+                        <div class="text-2xl font-bold text-blue-900">{{ $savedStats->total_trades }}</div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-blue-700 mb-1">Средний PnL</div>
+                        <div class="text-2xl font-bold {{ $savedStats->avg_pnl >= 0 ? 'text-green-600' : 'text-red-600' }}">
+                            {{ number_format($savedStats->avg_pnl, 4) }} USDT
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
+
             <!-- Расширенные метрики -->
             @if($closedPositionsCount > 0)
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
