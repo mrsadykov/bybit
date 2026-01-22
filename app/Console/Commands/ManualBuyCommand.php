@@ -11,8 +11,8 @@ use Illuminate\Console\Command;
 class ManualBuyCommand extends Command
 {
     protected $signature = 'trade:buy
-        {symbol : Trading pair (e.g. BTCUSDT)}
         {amount : Amount in USDT to buy}
+        {symbol? : Trading pair (e.g. BTCUSDT). Optional if --bot is specified}
         {--bot= : Bot ID (optional, uses first active bot if not specified)}
         {--dry-run : Test mode (no real trading)}';
 
@@ -20,8 +20,8 @@ class ManualBuyCommand extends Command
 
     public function handle(): int
     {
-        $symbol = strtoupper($this->argument('symbol'));
         $amount = (float) $this->argument('amount');
+        $symbolArg = $this->argument('symbol');
         $botId = $this->option('bot');
         $dryRun = $this->option('dry-run');
 
@@ -43,6 +43,20 @@ class ManualBuyCommand extends Command
         if (!$bot->exchangeAccount) {
             $this->error('Аккаунт биржи не привязан (No exchange account attached)');
             return self::FAILURE;
+        }
+
+        // Определяем символ: из аргумента или из бота
+        if ($symbolArg) {
+            $symbol = strtoupper($symbolArg);
+            // Проверяем, что символ совпадает с символом бота (если указан бот)
+            if ($botId && $bot->symbol !== $symbol) {
+                $this->warn("⚠️  Внимание: Указанный символ ({$symbol}) не совпадает с символом бота #{$bot->id} ({$bot->symbol})");
+                $this->warn("Будет использован указанный символ: {$symbol}");
+            }
+        } else {
+            // Используем символ из бота
+            $symbol = $bot->symbol;
+            $this->info("Используется символ бота (Using bot symbol): {$symbol}");
         }
 
         $this->info("Ручная покупка (Manual BUY order)");

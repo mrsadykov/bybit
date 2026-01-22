@@ -138,7 +138,54 @@ class BotController extends Controller
 
         $accounts = ExchangeAccount::where('user_id', Auth::id())->get();
 
-        return view('bots.edit', compact('bot', 'accounts'));
+        // Нормализуем таймфрейм для отображения в форме
+        // "1h" -> "60", "5m" -> "5", "1" -> "1" и т.д.
+        $normalizedTimeframe = $this->normalizeTimeframeForForm($bot->timeframe);
+
+        return view('bots.edit', compact('bot', 'accounts', 'normalizedTimeframe'));
+    }
+
+    /**
+     * Normalize timeframe value for form display.
+     * Converts "1h" -> "60", "5m" -> "5", etc.
+     */
+    private function normalizeTimeframeForForm(string $timeframe): string
+    {
+        // Если заканчивается на "h", конвертируем в минуты
+        if (preg_match('/^(\d+)h$/', $timeframe, $matches)) {
+            return (string)($matches[1] * 60);
+        }
+        
+        // Если заканчивается на "m", убираем "m"
+        if (preg_match('/^(\d+)m$/', $timeframe, $matches)) {
+            return $matches[1];
+        }
+        
+        // Если уже число или D/W/M, возвращаем как есть
+        return $timeframe;
+    }
+
+    /**
+     * Normalize timeframe value for storage.
+     * Converts "60" -> "1h", "5" -> "5m" (if < 60), etc.
+     */
+    private function normalizeTimeframeForStorage(string $timeframe): string
+    {
+        // Если это число
+        if (is_numeric($timeframe)) {
+            $minutes = (int)$timeframe;
+            
+            // Если >= 60, конвертируем в часы
+            if ($minutes >= 60 && $minutes % 60 === 0) {
+                return ($minutes / 60) . 'h';
+            }
+            
+            // Иначе в минуты
+            return $minutes . 'm';
+        }
+        
+        // Если уже в формате "1h", "5m", "D", "W" - возвращаем как есть
+        return $timeframe;
     }
 
     /**
@@ -170,10 +217,13 @@ class BotController extends Controller
             ->where('user_id', Auth::id())
             ->firstOrFail();
 
+        // Нормализуем таймфрейм: если число, конвертируем в формат "1h" для часов или "5m" для минут
+        $timeframe = $this->normalizeTimeframeForStorage($validated['timeframe']);
+
         $bot->update([
             'exchange_account_id' => $account->id,
             'symbol' => strtoupper($validated['symbol']),
-            'timeframe' => $validated['timeframe'],
+            'timeframe' => $timeframe,
             'strategy' => $validated['strategy'],
             'position_size' => $validated['position_size'],
             'stop_loss_percent' => $validated['stop_loss_percent'] ?? null,

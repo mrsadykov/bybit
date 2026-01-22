@@ -11,8 +11,8 @@ use Illuminate\Console\Command;
 class ManualSellCommand extends Command
 {
     protected $signature = 'trade:sell
-        {symbol : Trading pair (e.g. BTCUSDT)}
         {quantity? : Quantity to sell (e.g. 0.001). Ignored if --all is used}
+        {symbol? : Trading pair (e.g. BTCUSDT). Optional if --bot is specified}
         {--bot= : Bot ID (optional, uses first active bot if not specified)}
         {--dry-run : Test mode (no real trading)}
         {--all : Sell all available balance}';
@@ -21,7 +21,8 @@ class ManualSellCommand extends Command
 
     public function handle(): int
     {
-        $symbol = strtoupper($this->argument('symbol'));
+        $quantityArg = $this->argument('quantity');
+        $symbolArg = $this->argument('symbol');
         $botId = $this->option('bot');
         $dryRun = $this->option('dry-run');
         $sellAll = $this->option('all');
@@ -44,6 +45,20 @@ class ManualSellCommand extends Command
         if (!$bot->exchangeAccount) {
             $this->error('Аккаунт биржи не привязан (No exchange account attached)');
             return self::FAILURE;
+        }
+
+        // Определяем символ: из аргумента или из бота
+        if ($symbolArg) {
+            $symbol = strtoupper($symbolArg);
+            // Проверяем, что символ совпадает с символом бота (если указан бот)
+            if ($botId && $bot->symbol !== $symbol) {
+                $this->warn("⚠️  Внимание: Указанный символ ({$symbol}) не совпадает с символом бота #{$bot->id} ({$bot->symbol})");
+                $this->warn("Будет использован указанный символ: {$symbol}");
+            }
+        } else {
+            // Используем символ из бота
+            $symbol = $bot->symbol;
+            $this->info("Используется символ бота (Using bot symbol): {$symbol}");
         }
 
         $exchangeService = ExchangeServiceFactory::create($bot->exchangeAccount);
@@ -71,12 +86,12 @@ class ManualSellCommand extends Command
             }
         } else {
             // Продаем указанное количество
-            $quantityArg = $this->argument('quantity');
             if ($quantityArg === null) {
                 $this->error("Необходимо указать количество или использовать --all (Quantity required or use --all flag)");
                 $this->info("Примеры (Examples):");
-                $this->line("  php artisan trade:sell BTCUSDT 0.001");
-                $this->line("  php artisan trade:sell BTCUSDT --all");
+                $this->line("  php artisan trade:sell 0.001 --bot=4");
+                $this->line("  php artisan trade:sell --all --bot=4");
+                $this->line("  php artisan trade:sell 0.001 BNBUSDT --bot=4");
                 return self::FAILURE;
             }
             $quantity = (float) $quantityArg;

@@ -102,29 +102,30 @@ PENDING → SENT → FILLED / PARTIALLY_FILLED / FAILED
 
 #### Ручная торговля (Manual Trading)
 
-**`php artisan trade:buy {symbol} {amount} [--bot=ID] [--dry-run]`**
+**`php artisan trade:buy {amount} [symbol] [--bot=ID] [--dry-run]`**
 - Ручная покупка (Manual BUY order)
 - Параметры:
-  - `symbol` - торговая пара (например: BTCUSDT, ETHUSDT)
   - `amount` - сумма в USDT для покупки (например: 5)
+  - `symbol` - торговая пара (опционально, если указан `--bot`, берется из настроек бота)
   - `--bot=ID` - ID конкретного бота (опционально, использует первый активный бот)
   - `--dry-run` - тестовый режим (без реальной торговли, только уведомление в Telegram)
 - Примеры:
-  - `php artisan trade:buy ETHUSDT 5 --dry-run` - пробная покупка 5 USDT ETH
-  - `php artisan trade:buy BTCUSDT 10` - реальная покупка 10 USDT BTC
-  - `php artisan trade:buy ETHUSDT 5 --bot=2` - покупка через конкретного бота
+  - `php artisan trade:buy 5 --bot=4 --dry-run` - пробная покупка 5 USDT (символ из бота #4)
+  - `php artisan trade:buy 10 BNBUSDT --bot=4` - реальная покупка 10 USDT BNB через бота #4
+  - `php artisan trade:buy 5 ETHUSDT --dry-run` - пробная покупка 5 USDT ETH (без указания бота)
 
-**`php artisan trade:sell {symbol} {quantity?} [--bot=ID] [--dry-run] [--all]`**
+**`php artisan trade:sell [quantity] [symbol] [--bot=ID] [--dry-run] [--all]`**
 - Ручная продажа (Manual SELL order)
 - Параметры:
-  - `symbol` - торговая пара (BTCUSDT продает BTC, ETHUSDT продает ETH)
   - `quantity` - количество базовой монеты для продажи (например: 0.001 для BTC, 0.01 для ETH). Игнорируется если используется `--all`
+  - `symbol` - торговая пара (опционально, если указан `--bot`, берется из настроек бота). BTCUSDT продает BTC, ETHUSDT продает ETH
   - `--bot=ID` - ID конкретного бота (опционально, использует первый активный бот)
   - `--dry-run` - тестовый режим (без реальной торговли, только уведомление в Telegram)
   - `--all` - продать весь доступный баланс базовой монеты
-- Примеры для ETH:
-  - `php artisan trade:sell ETHUSDT 0.01 --dry-run` - пробная продажа 0.01 ETH
-  - `php artisan trade:sell ETHUSDT 0.01` - реальная продажа 0.01 ETH
+- Примеры:
+  - `php artisan trade:sell --all --bot=4 --dry-run` - пробная продажа всех монет (символ из бота #4)
+  - `php artisan trade:sell 0.01 --bot=4` - реальная продажа 0.01 монеты (символ из бота #4)
+  - `php artisan trade:sell 0.01 ETHUSDT --dry-run` - пробная продажа 0.01 ETH (без указания бота)
   - `php artisan trade:sell ETHUSDT 0 --all --dry-run` - пробная продажа всего ETH баланса
   - `php artisan trade:sell ETHUSDT 0 --all` - реальная продажа всего ETH баланса
 - Примеры для BTC:

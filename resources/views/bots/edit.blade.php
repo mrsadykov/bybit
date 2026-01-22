@@ -52,16 +52,16 @@
                             </label>
                             <select name="timeframe" id="timeframe" required
                                 class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                <option value="1" {{ $bot->timeframe == '1' ? 'selected' : '' }}>{{ __('bots.timeframe_1') }}</option>
-                                <option value="3" {{ $bot->timeframe == '3' ? 'selected' : '' }}>{{ __('bots.timeframe_3') }}</option>
-                                <option value="5" {{ $bot->timeframe == '5' ? 'selected' : '' }}>{{ __('bots.timeframe_5') }}</option>
-                                <option value="15" {{ $bot->timeframe == '15' ? 'selected' : '' }}>{{ __('bots.timeframe_15') }}</option>
-                                <option value="30" {{ $bot->timeframe == '30' ? 'selected' : '' }}>{{ __('bots.timeframe_30') }}</option>
-                                <option value="60" {{ $bot->timeframe == '60' ? 'selected' : '' }}>{{ __('bots.timeframe_60') }}</option>
-                                <option value="120" {{ $bot->timeframe == '120' ? 'selected' : '' }}>{{ __('bots.timeframe_120') }}</option>
-                                <option value="240" {{ $bot->timeframe == '240' ? 'selected' : '' }}>{{ __('bots.timeframe_240') }}</option>
-                                <option value="D" {{ $bot->timeframe == 'D' ? 'selected' : '' }}>{{ __('bots.timeframe_D') }}</option>
-                                <option value="W" {{ $bot->timeframe == 'W' ? 'selected' : '' }}>{{ __('bots.timeframe_W') }}</option>
+                                <option value="1" {{ ($normalizedTimeframe ?? $bot->timeframe) == '1' ? 'selected' : '' }}>{{ __('bots.timeframe_1') }}</option>
+                                <option value="3" {{ ($normalizedTimeframe ?? $bot->timeframe) == '3' ? 'selected' : '' }}>{{ __('bots.timeframe_3') }}</option>
+                                <option value="5" {{ ($normalizedTimeframe ?? $bot->timeframe) == '5' ? 'selected' : '' }}>{{ __('bots.timeframe_5') }}</option>
+                                <option value="15" {{ ($normalizedTimeframe ?? $bot->timeframe) == '15' ? 'selected' : '' }}>{{ __('bots.timeframe_15') }}</option>
+                                <option value="30" {{ ($normalizedTimeframe ?? $bot->timeframe) == '30' ? 'selected' : '' }}>{{ __('bots.timeframe_30') }}</option>
+                                <option value="60" {{ ($normalizedTimeframe ?? $bot->timeframe) == '60' ? 'selected' : '' }}>{{ __('bots.timeframe_60') }}</option>
+                                <option value="120" {{ ($normalizedTimeframe ?? $bot->timeframe) == '120' ? 'selected' : '' }}>{{ __('bots.timeframe_120') }}</option>
+                                <option value="240" {{ ($normalizedTimeframe ?? $bot->timeframe) == '240' ? 'selected' : '' }}>{{ __('bots.timeframe_240') }}</option>
+                                <option value="D" {{ ($normalizedTimeframe ?? $bot->timeframe) == 'D' ? 'selected' : '' }}>{{ __('bots.timeframe_D') }}</option>
+                                <option value="W" {{ ($normalizedTimeframe ?? $bot->timeframe) == 'W' ? 'selected' : '' }}>{{ __('bots.timeframe_W') }}</option>
                             </select>
                             @error('timeframe')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
