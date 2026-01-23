@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'title' => 'Сделки',
+    'back_to_dashboard' => 'Назад к дашборду',
+    'filters' => 'Фильтры',
+    'reset_all' => 'Сбросить все',
+    'bot' => 'Бот',
+    'all_bots' => 'Все боты',
+    'symbol' => 'Символ',
+    'all_symbols' => 'Все символы',
+    'side' => 'Сторона',
+    'all' => 'Все',
+    'status' => 'Статус',
+    'all_statuses' => 'Все статусы',
+    'active_filters' => 'Активные фильтры',
+    'total_found' => 'Всего найдено',
+    'trades' => 'сделок',
+    'trade' => 'сделка',
+    'date' => 'Дата',
+    'quantity' => 'Количество',
+    'price' => 'Цена',
+    'pnl' => 'PnL',
+    'no_trades_found' => 'Сделки не найдены',
+];

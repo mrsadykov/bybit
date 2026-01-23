@@ -16,7 +16,7 @@
                         {{ __('common.dashboard') }}
                     </x-nav-link>
                     <x-nav-link :href="route('trades.index')" :active="request()->routeIs('trades.*')">
-                        {{ __('Сделки') }}
+                        {{ __('trades.title') }}
                     </x-nav-link>
                     <x-nav-link :href="route('bots.index')" :active="request()->routeIs('bots.*')">
                         {{ __('bots.title') }}
@@ -101,7 +101,7 @@
                 {{ __('common.dashboard') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('trades.index')" :active="request()->routeIs('trades.*')">
-                {{ __('Сделки') }}
+                {{ __('trades.title') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('bots.index')" :active="request()->routeIs('bots.*')">
                 {{ __('bots.title') }}

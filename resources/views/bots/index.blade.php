@@ -75,19 +75,21 @@
                                     @endif
                                 </div>
 
-                                <div class="flex gap-2">
-                                    <a href="{{ route('bots.show', $bot) }}" class="bg-blue-500 hover:bg-blue-600 text-white text-center font-medium py-1.5 px-3 rounded-md text-xs transition-colors duration-200">
-                                        {{ __('bots.view') }}
-                                    </a>
+                                <div class="flex justify-between items-center gap-2">
+                                    <div class="flex gap-2">
+                                        <a href="{{ route('bots.show', $bot) }}" class="bg-blue-500 hover:bg-blue-600 text-white text-center font-medium py-1.5 px-3 rounded-md text-xs transition-colors duration-200">
+                                            {{ __('bots.view') }}
+                                        </a>
+                                        <form action="{{ route('bots.toggle-active', $bot) }}" method="POST" class="inline">
+                                            @csrf
+                                            <button type="submit" class="{{ $bot->is_active ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600' }} text-white font-medium py-1.5 px-3 rounded-md text-xs transition-colors duration-200">
+                                                {{ $bot->is_active ? __('bots.deactivate') : __('bots.activate') }}
+                                            </button>
+                                        </form>
+                                    </div>
                                     <a href="{{ route('bots.edit', $bot) }}" class="bg-gray-500 hover:bg-gray-600 text-white text-center font-medium py-1.5 px-3 rounded-md text-xs transition-colors duration-200">
                                         {{ __('bots.edit') }}
                                     </a>
-                                    <form action="{{ route('bots.toggle-active', $bot) }}" method="POST" class="inline">
-                                        @csrf
-                                        <button type="submit" class="{{ $bot->is_active ? 'bg-yellow-500 hover:bg-yellow-600' : 'bg-green-500 hover:bg-green-600' }} text-white font-medium py-1.5 px-3 rounded-md text-xs transition-colors duration-200">
-                                            {{ $bot->is_active ? __('bots.deactivate') : __('bots.activate') }}
-                                        </button>
-                                    </form>
                                 </div>
                             </div>
                         </div>

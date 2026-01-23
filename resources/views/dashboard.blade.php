@@ -51,7 +51,7 @@
             @endif
 
             <!-- Основные метрики -->
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
                 <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
                     <div class="p-4">
                         <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Ботов</div>
@@ -122,7 +122,7 @@
 
             <!-- Сохраненная статистика -->
             @if($savedStats)
-            <div class="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg text-white overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg text-white overflow-hidden mb-6">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-4">
                         <div class="flex items-center space-x-2">
@@ -155,7 +155,7 @@
 
             <!-- Расширенные метрики -->
             @if($closedPositionsCount > 0)
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div class="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
                     <div class="p-4">
                         <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Средний PnL</div>
@@ -225,41 +225,6 @@
             </div>
             @endif
 
-            <!-- Быстрые ссылки -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <a href="{{ route('trades.index') }}" class="group bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-xl hover:border-indigo-300 transition-all duration-200">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-4">
-                            <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
-                                <span class="text-2xl">📊</span>
-                            </div>
-                            <div>
-                                <h3 class="text-base font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Все сделки</h3>
-                                <p class="text-sm text-gray-500 mt-1">Просмотр всех сделок с фильтрами</p>
-                            </div>
-                        </div>
-                        <svg class="w-6 h-6 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                        </svg>
-                    </div>
-                </a>
-                <a href="{{ route('bots.index') }}" class="group bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-xl hover:border-indigo-300 transition-all duration-200">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-4">
-                            <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
-                                <span class="text-2xl">🤖</span>
-                            </div>
-                            <div>
-                                <h3 class="text-base font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">Торговые боты</h3>
-                                <p class="text-sm text-gray-500 mt-1">Управление торговыми ботами</p>
-                            </div>
-                        </div>
-                        <svg class="w-6 h-6 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                        </svg>
-                    </div>
-                </a>
-            </div>
 
         </div>
     </div>

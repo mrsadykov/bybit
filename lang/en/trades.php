@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'title' => 'Trades',
+    'back_to_dashboard' => 'Back to Dashboard',
+    'filters' => 'Filters',
+    'reset_all' => 'Reset All',
+    'bot' => 'Bot',
+    'all_bots' => 'All Bots',
+    'symbol' => 'Symbol',
+    'all_symbols' => 'All Symbols',
+    'side' => 'Side',
+    'all' => 'All',
+    'status' => 'Status',
+    'all_statuses' => 'All Statuses',
+    'active_filters' => 'Active Filters',
+    'total_found' => 'Total Found',
+    'trades' => 'trades',
+    'trade' => 'trade',
+    'date' => 'Date',
+    'quantity' => 'Quantity',
+    'price' => 'Price',
+    'pnl' => 'PnL',
+    'no_trades_found' => 'No trades found',
+];
