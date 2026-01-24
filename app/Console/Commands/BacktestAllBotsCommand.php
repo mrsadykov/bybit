@@ -47,11 +47,11 @@ class BacktestAllBotsCommand extends Command
             $stopLoss = $bot->stop_loss_percent ? (float) $bot->stop_loss_percent : null;
             $takeProfit = $bot->take_profit_percent ? (float) $bot->take_profit_percent : null;
             
-            // Используем очень мягкие пороги RSI для максимального количества сделок
-            // 50/50 - очень агрессивные значения (RSI ниже 50 = покупка, выше 50 = продажа)
-            // Это даст максимальное количество торговых возможностей
-            $rsiBuyThreshold = 50.0;
-            $rsiSellThreshold = 50.0;
+            // Используем оптимальные пороги RSI для баланса между количеством сделок и качеством
+            // 45/55 - хороший баланс (больше сделок, чем 40/60, но лучше качество, чем 50/50)
+            // В сочетании с менее строгим условием EMA это даст хорошие результаты
+            $rsiBuyThreshold = 45.0;
+            $rsiSellThreshold = 55.0;
 
             $this->line("Параметры (Parameters):");
             $this->line("  Символ (Symbol): {$bot->symbol}");

@@ -369,11 +369,15 @@ class BacktestStrategyCommand extends Command
      */
     protected function getSignal(float $rsi, float $ema, float $currentPrice, float $rsiBuyThreshold = 30, float $rsiSellThreshold = 70): string
     {
-        if ($rsi < $rsiBuyThreshold && $currentPrice > $ema) {
+        // Менее строгое условие EMA: цена должна быть близко к EMA (в пределах 1%)
+        // Это даст больше сигналов, чем строгое условие, но все еще учитывает тренд
+        $emaTolerance = 0.01; // 1% допуск
+        
+        if ($rsi < $rsiBuyThreshold && $currentPrice >= $ema * (1 - $emaTolerance)) {
             return 'BUY';
         }
 
-        if ($rsi > $rsiSellThreshold && $currentPrice < $ema) {
+        if ($rsi > $rsiSellThreshold && $currentPrice <= $ema * (1 + $emaTolerance)) {
             return 'SELL';
         }
 
