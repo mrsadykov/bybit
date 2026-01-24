@@ -19,7 +19,8 @@ class BacktestStrategyCommand extends Command
                             {--position-size=100 : Размер позиции в USDT}
                             {--fee=0.001 : Комиссия (0.001 = 0.1%)}
                             {--stop-loss= : Stop-Loss процент (например: 5.0 = продать при падении на 5%)}
-                            {--take-profit= : Take-Profit процент (например: 10.0 = продать при росте на 10%)}';
+                            {--take-profit= : Take-Profit процент (например: 10.0 = продать при росте на 10%)}
+                            {--json : Вывести результаты в формате JSON}';
 
     protected $description = 'Бэктестинг стратегии RSI + EMA на исторических данных (Backtest RSI + EMA strategy on historical data)';
 
@@ -35,29 +36,35 @@ class BacktestStrategyCommand extends Command
         $fee = (float) $this->option('fee');
         $stopLoss = $this->option('stop-loss') ? (float) $this->option('stop-loss') : null;
         $takeProfit = $this->option('take-profit') ? (float) $this->option('take-profit') : null;
+        $jsonMode = $this->option('json');
 
-        $this->info("Бэктестинг стратегии RSI + EMA (Backtesting RSI + EMA strategy)");
-        $this->line('');
-        $this->line("Параметры (Parameters):");
-        $this->line("  Символ (Symbol): {$symbol}");
-        $this->line("  Таймфрейм (Timeframe): {$timeframe}");
-        $this->line("  Биржа (Exchange): {$exchangeName}");
-        $this->line("  Период (Period): {$period} свечей");
-        $this->line("  RSI период (RSI Period): {$rsiPeriod}");
-        $this->line("  EMA период (EMA Period): {$emaPeriod}");
-        $this->line("  Размер позиции (Position Size): {$positionSize} USDT");
-        $this->line("  Комиссия (Fee): " . ($fee * 100) . "%");
-        if ($stopLoss) {
-            $this->line("  Stop-Loss: {$stopLoss}%");
+        // В режиме JSON не выводим информационные сообщения
+        if (!$jsonMode) {
+            $this->info("Бэктестинг стратегии RSI + EMA (Backtesting RSI + EMA strategy)");
+            $this->line('');
+            $this->line("Параметры (Parameters):");
+            $this->line("  Символ (Symbol): {$symbol}");
+            $this->line("  Таймфрейм (Timeframe): {$timeframe}");
+            $this->line("  Биржа (Exchange): {$exchangeName}");
+            $this->line("  Период (Period): {$period} свечей");
+            $this->line("  RSI период (RSI Period): {$rsiPeriod}");
+            $this->line("  EMA период (EMA Period): {$emaPeriod}");
+            $this->line("  Размер позиции (Position Size): {$positionSize} USDT");
+            $this->line("  Комиссия (Fee): " . ($fee * 100) . "%");
+            if ($stopLoss) {
+                $this->line("  Stop-Loss: {$stopLoss}%");
+            }
+            if ($takeProfit) {
+                $this->line("  Take-Profit: {$takeProfit}%");
+            }
+            $this->line('');
         }
-        if ($takeProfit) {
-            $this->line("  Take-Profit: {$takeProfit}%");
-        }
-        $this->line('');
 
         // Получаем исторические данные напрямую через публичный API
         // (для бэктестинга не нужны API ключи, только публичные данные)
-        $this->info("Получение исторических данных (Fetching historical data)...");
+        if (!$jsonMode) {
+            $this->info("Получение исторических данных (Fetching historical data)...");
+        }
         try {
             $limit = min($period + 50, 1000); // Берем немного больше для расчета индикаторов
             $candlesResponse = $this->fetchCandlesPublic($exchangeName, $symbol, $timeframe, $limit);
@@ -71,7 +78,11 @@ class BacktestStrategyCommand extends Command
             }
 
             if (empty($candles)) {
-                $this->error("Не удалось получить исторические данные (Failed to fetch historical data)");
+                if ($jsonMode) {
+                    echo json_encode(['error' => 'Failed to fetch historical data'], JSON_UNESCAPED_UNICODE);
+                } else {
+                    $this->error("Не удалось получить исторические данные (Failed to fetch historical data)");
+                }
                 return self::FAILURE;
             }
 
@@ -107,22 +118,49 @@ class BacktestStrategyCommand extends Command
             // Берем только нужное количество
             $candleList = array_slice($candleList, -$period);
 
-            $this->info("Получено " . count($candleList) . " свечей (Fetched " . count($candleList) . " candles)");
-            $this->line('');
+            if (!$jsonMode) {
+                $this->info("Получено " . count($candleList) . " свечей (Fetched " . count($candleList) . " candles)");
+                $this->line('');
+            }
 
         } catch (\Throwable $e) {
-            $this->error("Ошибка получения данных (Data fetch error): " . $e->getMessage());
+            if ($jsonMode) {
+                echo json_encode(['error' => 'Data fetch error: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+            } else {
+                $this->error("Ошибка получения данных (Data fetch error): " . $e->getMessage());
+            }
             return self::FAILURE;
         }
 
         // Запускаем бэктестинг
-        $this->info("Запуск бэктестинга (Running backtest)...");
-        $this->line('');
+        if (!$jsonMode) {
+            $this->info("Запуск бэктестинга (Running backtest)...");
+            $this->line('');
+        }
 
         $results = $this->runBacktest($candleList, $rsiPeriod, $emaPeriod, $positionSize, $fee, $stopLoss, $takeProfit);
 
+        // Добавляем параметры в результаты для анализа
+        $results['parameters'] = [
+            'symbol' => $symbol,
+            'timeframe' => $timeframe,
+            'exchange' => $exchangeName,
+            'period' => $period,
+            'rsi_period' => $rsiPeriod,
+            'ema_period' => $emaPeriod,
+            'position_size' => $positionSize,
+            'stop_loss' => $stopLoss,
+            'take_profit' => $takeProfit,
+        ];
+
         // Выводим результаты
-        $this->displayResults($results);
+        if ($this->option('json')) {
+            // В режиме JSON выводим только JSON, без дополнительных сообщений
+            echo json_encode($results, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            return self::SUCCESS;
+        } else {
+            $this->displayResults($results);
+        }
 
         return self::SUCCESS;
     }
