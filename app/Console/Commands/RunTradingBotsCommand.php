@@ -592,14 +592,116 @@ class RunTradingBotsCommand extends Command
                         $orderId = $response['data'][0]['ordId'] ?? null;
                     }
 
+                    if (! $orderId) {
+                        $sell->update([
+                            'status'            => 'FAILED',
+                            'exchange_response' => $response,
+                        ]);
+                        $this->error("{$exchange} не вернул orderId для SELL ({$exchange} did not return orderId for SELL)");
+                        continue;
+                    }
+
                     $sell->update([
                         'order_id'          => $orderId,
-                        'status'            => $orderId ? 'SENT' : 'FAILED',
+                        'status'            => 'SENT',
                         'exchange_response' => $response,
                     ]);
 
                     // даём бирже обработать ордер
                     usleep(500_000);
+
+                    // Проверка статуса ордера (как в BUY)
+                    try {
+                        $orderResponse = $exchangeService->getOrder(
+                            $bot->symbol,
+                            $orderId
+                        );
+
+                        // Обрабатываем разные форматы ответов
+                        $order = null;
+                        if ($exchange === 'bybit') {
+                            $order = $orderResponse['result']['list'][0] ?? null;
+                        } elseif ($exchange === 'okx') {
+                            $order = $orderResponse['data'][0] ?? null;
+                        }
+
+                        if (! $order) {
+                            $this->warn('SELL ордер еще не найден (SELL order not found yet)');
+                            continue;
+                        }
+
+                        // Обрабатываем статус ордера
+                        $isFilled = false;
+                        $quantity = 0;
+                        $fee = 0;
+                        $feeCurrency = null;
+                        $filledPrice = 0;
+                        
+                        if ($exchange === 'bybit') {
+                            $isFilled = ($order['orderStatus'] ?? '') === 'Filled';
+                            $quantity = (float) ($order['cumExecQty'] ?? 0);
+                            $fee = (float) ($order['cumExecFee'] ?? 0);
+                            $feeCurrency = $order['feeCurrency'] ?? null;
+                            $filledPrice = (float) ($order['avgPrice'] ?? $price);
+                        } elseif ($exchange === 'okx') {
+                            $isFilled = ($order['state'] ?? '') === 'filled';
+                            $quantity = (float) ($order['accFillSz'] ?? 0);
+                            $fee = (float) ($order['fee'] ?? 0);
+                            $feeCurrency = $order['feeCcy'] ?? null;
+                            $filledPrice = (float) ($order['avgPx'] ?? $price);
+                        }
+
+                        if ($isFilled) {
+                            $sell->update([
+                                'quantity'     => $quantity,
+                                'price'        => $filledPrice,
+                                'fee'          => $fee,
+                                'fee_currency' => $feeCurrency,
+                                'status'       => 'FILLED',
+                                'filled_at'    => now(),
+                            ]);
+
+                            $this->info('ОРДЕР SELL ИСПОЛНЕН (SELL ORDER FILLED)');
+                            
+                            // Уведомление в Telegram
+                            $telegram->notifyFilled('SELL', $bot->symbol, $quantity, $filledPrice, $fee);
+                            
+                            logger()->info('SELL order filled', [
+                                'bot_id' => $bot->id,
+                                'trade_id' => $sell->id,
+                                'order_id' => $orderId,
+                                'quantity' => $quantity,
+                                'price' => $filledPrice,
+                                'fee' => $fee,
+                            ]);
+                        } else {
+                            $orderStatus = $exchange === 'bybit' 
+                                ? ($order['orderStatus'] ?? 'Unknown')
+                                : ($order['state'] ?? 'Unknown');
+                            
+                            $sell->update([
+                                'status' => 'SENT',
+                            ]);
+
+                            $this->info('ОРДЕР SELL ОТПРАВЛЕН (SELL ORDER SENT)');
+                            $this->warn('Статус ордера (Order status): ' . $orderStatus);
+                            
+                            logger()->info('SELL order sent (not filled yet)', [
+                                'bot_id' => $bot->id,
+                                'trade_id' => $sell->id,
+                                'order_id' => $orderId,
+                                'status' => $orderStatus,
+                            ]);
+                        }
+                    } catch (\Throwable $e) {
+                        $this->warn('Ошибка проверки статуса SELL ордера (SELL order status check error): ' . $e->getMessage());
+                        logger()->error('SELL order status check failed', [
+                            'bot_id' => $bot->id,
+                            'trade_id' => $sell->id,
+                            'order_id' => $orderId,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
 
                 } catch (\Throwable $e) {
                     $telegram->notifyError('Ордер SELL (SELL Order)', $e->getMessage());
