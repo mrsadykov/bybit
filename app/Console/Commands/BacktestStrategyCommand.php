@@ -423,10 +423,9 @@ class BacktestStrategyCommand extends Command
     protected function fetchCandlesPublic(string $exchange, string $symbol, string $timeframe, int $limit): array
     {
         if ($exchange === 'okx') {
-            // OKX публичный API
-            $okxSymbol = str_ends_with($symbol, 'USDT') 
-                ? substr($symbol, 0, -4) . '-USDT' 
-                : $symbol;
+            // OKX публичный API - используем правильный формат символа
+            // OKX требует формат BTC-USDT вместо BTCUSDT
+            $okxSymbol = $this->formatOkxSymbol($symbol);
             
             $intervalMap = [
                 '1' => '1m', '3' => '3m', '5' => '5m', '15' => '15m', '30' => '30m',
@@ -472,5 +471,32 @@ class BacktestStrategyCommand extends Command
         }
         
         throw new \RuntimeException("Unsupported exchange: {$exchange}");
+    }
+
+    /**
+     * Форматировать символ для OKX API
+     * Конвертирует BTCUSDT в BTC-USDT
+     */
+    protected function formatOkxSymbol(string $symbol): string
+    {
+        // Если уже есть дефис, возвращаем как есть
+        if (str_contains($symbol, '-')) {
+            return $symbol;
+        }
+
+        // Для BTCUSDT -> BTC-USDT
+        if (str_ends_with($symbol, 'USDT')) {
+            $base = substr($symbol, 0, -4);
+            return $base . '-USDT';
+        }
+
+        // Для других форматов пытаемся найти паттерн (например, ETHUSDT -> ETH-USDT)
+        if (strlen($symbol) > 4) {
+            $quote = substr($symbol, -4);
+            $base = substr($symbol, 0, -4);
+            return $base . '-' . $quote;
+        }
+
+        return $symbol;
     }
 }

@@ -83,66 +83,71 @@ class BacktestAllBotsCommand extends Command
                 Artisan::call('strategy:backtest', ['symbol' => 'DUMMY', '--json' => true]);
                 Artisan::output(); // Очищаем
                 
-                // Извлекаем JSON из вывода - упрощенный и надежный метод
+                // Извлекаем JSON из вывода - ищем первый валидный JSON с результатами (не ошибку)
                 $result = null;
                 
                 // Убираем все переносы строк и пробелы в начале/конце для упрощения
                 $cleanOutput = trim($output);
                 
-                // Метод 1: Находим последнюю полную JSON строку (самый простой способ)
-                // Ищем строку, которая содержит "return_percent" и заканчивается на }
-                $lines = explode("\n", $cleanOutput);
-                foreach (array_reverse($lines) as $line) {
-                    $line = trim($line);
-                    if (empty($line)) continue;
+                // Метод 1: Ищем все JSON объекты в выводе и берем первый с результатами (не ошибку)
+                // Разбиваем вывод на потенциальные JSON объекты
+                $jsonObjects = [];
+                $braceCount = 0;
+                $currentJson = '';
+                $inJson = false;
+                
+                for ($i = 0; $i < strlen($cleanOutput); $i++) {
+                    $char = $cleanOutput[$i];
                     
-                    // Если строка содержит полный JSON объект
-                    if (str_contains($line, '"return_percent"') && str_starts_with($line, '{') && str_ends_with($line, '}')) {
-                        $decoded = json_decode($line, true);
-                        if ($decoded !== null && isset($decoded['return_percent']) && json_last_error() === JSON_ERROR_NONE) {
+                    if ($char === '{') {
+                        if ($braceCount === 0) {
+                            $currentJson = '{';
+                            $inJson = true;
+                        } else {
+                            $currentJson .= $char;
+                        }
+                        $braceCount++;
+                    } elseif ($char === '}') {
+                        $currentJson .= $char;
+                        $braceCount--;
+                        
+                        if ($braceCount === 0 && $inJson) {
+                            // Нашли полный JSON объект
+                            $jsonObjects[] = $currentJson;
+                            $currentJson = '';
+                            $inJson = false;
+                        }
+                    } elseif ($inJson) {
+                        $currentJson .= $char;
+                    }
+                }
+                
+                // Ищем первый JSON с результатами (содержит "return_percent" и не содержит "error")
+                foreach ($jsonObjects as $jsonStr) {
+                    $decoded = json_decode($jsonStr, true);
+                    if ($decoded !== null && json_last_error() === JSON_ERROR_NONE) {
+                        // Проверяем, что это результат, а не ошибка
+                        if (isset($decoded['return_percent']) && !isset($decoded['error'])) {
                             $result = $decoded;
                             break;
                         }
                     }
                 }
                 
-                // Метод 2: Если не нашли в одной строке, собираем из нескольких
+                // Метод 2: Если не нашли, пробуем найти по паттерну в строках
                 if (!$result) {
-                    // Находим последнюю открывающую скобку
-                    $lastBracePos = strrpos($cleanOutput, '{');
-                    if ($lastBracePos !== false) {
-                        // Собираем JSON от последней { до соответствующей }
-                        $braceCount = 0;
-                        $jsonString = '';
+                    $lines = explode("\n", $cleanOutput);
+                    foreach ($lines as $line) {
+                        $line = trim($line);
+                        if (empty($line)) continue;
                         
-                        for ($i = $lastBracePos; $i < strlen($cleanOutput); $i++) {
-                            $char = $cleanOutput[$i];
-                            $jsonString .= $char;
-                            
-                            if ($char === '{') {
-                                $braceCount++;
-                            } elseif ($char === '}') {
-                                $braceCount--;
-                                // Если все скобки закрыты, пробуем распарсить
-                                if ($braceCount === 0) {
-                                    $decoded = json_decode($jsonString, true);
-                                    if ($decoded !== null && isset($decoded['return_percent']) && json_last_error() === JSON_ERROR_NONE) {
-                                        $result = $decoded;
-                                        break;
-                                    }
-                                }
+                        // Ищем строку с результатами (содержит "return_percent" и не содержит "error")
+                        if (str_contains($line, '"return_percent"') && !str_contains($line, '"error"') && str_starts_with($line, '{') && str_ends_with($line, '}')) {
+                            $decoded = json_decode($line, true);
+                            if ($decoded !== null && isset($decoded['return_percent']) && !isset($decoded['error']) && json_last_error() === JSON_ERROR_NONE) {
+                                $result = $decoded;
+                                break;
                             }
-                        }
-                    }
-                }
-                
-                // Метод 3: Регулярное выражение для поиска JSON объекта
-                if (!$result) {
-                    // Ищем JSON объект, который содержит "return_percent"
-                    if (preg_match('/\{[^{}]*"return_percent"[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/', $cleanOutput, $matches)) {
-                        $decoded = json_decode($matches[0], true);
-                        if ($decoded !== null && isset($decoded['return_percent']) && json_last_error() === JSON_ERROR_NONE) {
-                            $result = $decoded;
                         }
                     }
                 }
