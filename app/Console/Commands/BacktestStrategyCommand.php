@@ -16,6 +16,8 @@ class BacktestStrategyCommand extends Command
                             {--period=100 : Количество свечей для анализа (максимум 1000)}
                             {--rsi-period=14 : Период RSI}
                             {--ema-period=20 : Период EMA}
+                            {--rsi-buy-threshold=30 : Порог RSI для покупки (по умолчанию 30)}
+                            {--rsi-sell-threshold=70 : Порог RSI для продажи (по умолчанию 70)}
                             {--position-size=100 : Размер позиции в USDT}
                             {--fee=0.001 : Комиссия (0.001 = 0.1%)}
                             {--stop-loss= : Stop-Loss процент (например: 5.0 = продать при падении на 5%)}
@@ -32,6 +34,8 @@ class BacktestStrategyCommand extends Command
         $period = (int) $this->option('period');
         $rsiPeriod = (int) $this->option('rsi-period');
         $emaPeriod = (int) $this->option('ema-period');
+        $rsiBuyThreshold = (float) $this->option('rsi-buy-threshold');
+        $rsiSellThreshold = (float) $this->option('rsi-sell-threshold');
         $positionSize = (float) $this->option('position-size');
         $fee = (float) $this->option('fee');
         $stopLoss = $this->option('stop-loss') ? (float) $this->option('stop-loss') : null;
@@ -152,7 +156,7 @@ class BacktestStrategyCommand extends Command
             $this->line('');
         }
 
-        $results = $this->runBacktest($candleList, $rsiPeriod, $emaPeriod, $positionSize, $fee, $stopLoss, $takeProfit);
+        $results = $this->runBacktest($candleList, $rsiPeriod, $emaPeriod, $rsiBuyThreshold, $rsiSellThreshold, $positionSize, $fee, $stopLoss, $takeProfit);
 
         // Добавляем параметры в результаты для анализа
         $results['parameters'] = [
@@ -183,7 +187,7 @@ class BacktestStrategyCommand extends Command
     /**
      * Запуск бэктестинга
      */
-    protected function runBacktest(array $candles, int $rsiPeriod, int $emaPeriod, float $positionSize, float $fee, ?float $stopLoss = null, ?float $takeProfit = null): array
+    protected function runBacktest(array $candles, int $rsiPeriod, int $emaPeriod, float $rsiBuyThreshold, float $rsiSellThreshold, float $positionSize, float $fee, ?float $stopLoss = null, ?float $takeProfit = null): array
     {
         $closes = array_column($candles, 'close');
         $timestamps = array_column($candles, 'timestamp');
@@ -273,7 +277,7 @@ class BacktestStrategyCommand extends Command
             }
 
             // Применяем стратегию
-            $signal = $this->getSignal($rsi, $ema, $currentPrice);
+            $signal = $this->getSignal($rsi, $ema, $currentPrice, $rsiBuyThreshold, $rsiSellThreshold);
 
             // BUY сигнал
             if ($signal === 'BUY' && $position <= 0 && $balance >= $positionSize) {
@@ -363,13 +367,13 @@ class BacktestStrategyCommand extends Command
     /**
      * Получить сигнал стратегии
      */
-    protected function getSignal(float $rsi, float $ema, float $currentPrice): string
+    protected function getSignal(float $rsi, float $ema, float $currentPrice, float $rsiBuyThreshold = 30, float $rsiSellThreshold = 70): string
     {
-        if ($rsi < 30 && $currentPrice > $ema) {
+        if ($rsi < $rsiBuyThreshold && $currentPrice > $ema) {
             return 'BUY';
         }
 
-        if ($rsi > 70 && $currentPrice < $ema) {
+        if ($rsi > $rsiSellThreshold && $currentPrice < $ema) {
             return 'SELL';
         }
 

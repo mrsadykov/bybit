@@ -46,6 +46,11 @@ class BacktestAllBotsCommand extends Command
             $positionSize = (float) $bot->position_size;
             $stopLoss = $bot->stop_loss_percent ? (float) $bot->stop_loss_percent : null;
             $takeProfit = $bot->take_profit_percent ? (float) $bot->take_profit_percent : null;
+            
+            // Используем более мягкие пороги RSI для большего количества сделок
+            // 40/60 вместо 30/70 (более реалистичные значения)
+            $rsiBuyThreshold = 40.0;
+            $rsiSellThreshold = 60.0;
 
             $this->line("Параметры (Parameters):");
             $this->line("  Символ (Symbol): {$bot->symbol}");
@@ -69,6 +74,8 @@ class BacktestAllBotsCommand extends Command
                     '--period' => $period,
                     '--rsi-period' => $rsiPeriod,
                     '--ema-period' => $emaPeriod,
+                    '--rsi-buy-threshold' => $rsiBuyThreshold,
+                    '--rsi-sell-threshold' => $rsiSellThreshold,
                     '--position-size' => $positionSize,
                     '--stop-loss' => $stopLoss ?: '',
                     '--take-profit' => $takeProfit ?: '',
