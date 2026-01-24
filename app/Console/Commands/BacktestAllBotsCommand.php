@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Artisan;
 class BacktestAllBotsCommand extends Command
 {
     protected $signature = 'strategy:backtest-all 
-                            {--period=500 : Количество свечей для анализа}
+                            {--period=1000 : Количество свечей для анализа (рекомендуется 1000 для статистики)}
                             {--exchange=okx : Биржа (okx или bybit)}
                             {--output= : Файл для сохранения результатов (JSON)}';
 
@@ -48,9 +48,9 @@ class BacktestAllBotsCommand extends Command
             $takeProfit = $bot->take_profit_percent ? (float) $bot->take_profit_percent : null;
             
             // Используем более мягкие пороги RSI для большего количества сделок
-            // 40/60 вместо 30/70 (более реалистичные значения)
-            $rsiBuyThreshold = 40.0;
-            $rsiSellThreshold = 60.0;
+            // 45/55 вместо 40/60 (еще более агрессивные значения для большего количества сделок)
+            $rsiBuyThreshold = 45.0;
+            $rsiSellThreshold = 55.0;
 
             $this->line("Параметры (Parameters):");
             $this->line("  Символ (Symbol): {$bot->symbol}");
