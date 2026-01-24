@@ -13,8 +13,10 @@ class RsiEmaStrategy
         $rsiPeriod = $rsiPeriod ?? 17;
         $emaPeriod = $emaPeriod ?? 10;
         
-        // Более мягкие пороги по умолчанию для большего количества торговых возможностей
-        // 40/60 вместо 30/70 (более реалистичные значения)
+        // Консервативные пороги по умолчанию для реальной торговли
+        // 40/60 - более строгие условия, меньше сделок, но более качественные сигналы
+        // Меньше комиссий, меньше ложных сигналов, более стабильная торговля
+        // Для бэктестинга можно использовать 45/55 для получения большего количества данных
         $rsiBuyThreshold = $rsiBuyThreshold ?? 40.0;
         $rsiSellThreshold = $rsiSellThreshold ?? 60.0;
 
@@ -23,11 +25,16 @@ class RsiEmaStrategy
 
         $currentPrice = end($closes);
 
-        if ($rsi < $rsiBuyThreshold && $currentPrice > $ema) {
+        // Менее строгое условие EMA: цена должна быть близко к EMA (в пределах 1%)
+        // Это даст больше сигналов, чем строгое условие, но все еще учитывает тренд
+        // Такое же условие используется в бэктестинге для согласованности
+        $emaTolerance = 0.01; // 1% допуск
+        
+        if ($rsi < $rsiBuyThreshold && $currentPrice >= $ema * (1 - $emaTolerance)) {
             return 'BUY';
         }
 
-        if ($rsi > $rsiSellThreshold && $currentPrice < $ema) {
+        if ($rsi > $rsiSellThreshold && $currentPrice <= $ema * (1 + $emaTolerance)) {
             return 'SELL';
         }
 
