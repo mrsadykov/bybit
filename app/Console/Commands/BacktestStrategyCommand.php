@@ -82,7 +82,7 @@ class BacktestStrategyCommand extends Command
             if (empty($candles)) {
                 if ($jsonMode) {
                     // В режиме JSON возвращаем ошибку
-                    fwrite(STDOUT, json_encode(['error' => 'No candles data received'], JSON_UNESCAPED_UNICODE) . "\n");
+                    $this->line(json_encode(['error' => 'No candles data received'], JSON_UNESCAPED_UNICODE));
                 } else {
                     $this->error("Не удалось получить исторические данные (Failed to fetch historical data)");
                 }
@@ -128,7 +128,7 @@ class BacktestStrategyCommand extends Command
         } catch (\Throwable $e) {
             // В режиме JSON возвращаем ошибку
             if ($jsonMode) {
-                fwrite(STDOUT, json_encode(['error' => 'Data fetch error: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE) . "\n");
+                $this->line(json_encode(['error' => 'Data fetch error: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE));
             } else {
                 $this->error("Ошибка получения данных (Data fetch error): " . $e->getMessage());
             }
@@ -139,7 +139,7 @@ class BacktestStrategyCommand extends Command
         if (empty($candleList) || count($candleList) < max($rsiPeriod, $emaPeriod)) {
             if ($jsonMode) {
                 // В режиме JSON возвращаем ошибку
-                fwrite(STDOUT, json_encode(['error' => 'Not enough candle data', 'candles_count' => count($candleList)], JSON_UNESCAPED_UNICODE) . "\n");
+                $this->line(json_encode(['error' => 'Not enough candle data', 'candles_count' => count($candleList)], JSON_UNESCAPED_UNICODE));
             } else {
                 $this->error("Недостаточно данных для бэктестинга (Not enough data for backtest). Получено свечей: " . count($candleList));
             }
@@ -170,8 +170,8 @@ class BacktestStrategyCommand extends Command
         // Выводим результаты
         if ($this->option('json')) {
             // В режиме JSON выводим только JSON, без дополнительных сообщений
-            // Используем STDOUT напрямую для чистого вывода
-            fwrite(STDOUT, json_encode($results, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+            // Используем $this->line() чтобы Artisan::output() мог захватить вывод
+            $this->line(json_encode($results, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             return self::SUCCESS;
         } else {
             $this->displayResults($results);

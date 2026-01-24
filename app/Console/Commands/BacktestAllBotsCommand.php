@@ -62,7 +62,6 @@ class BacktestAllBotsCommand extends Command
             $this->line('');
 
             try {
-                // Очищаем предыдущий вывод перед новым вызовом
                 Artisan::call('strategy:backtest', [
                     'symbol' => $bot->symbol,
                     '--timeframe' => $bot->timeframe,
@@ -76,7 +75,7 @@ class BacktestAllBotsCommand extends Command
                     '--json' => true,
                 ]);
 
-                // Получаем только свежий вывод
+                // Получаем вывод из Artisan (теперь $this->line() используется вместо fwrite)
                 $output = Artisan::output();
                 
                 // Извлекаем JSON из вывода - ищем первый валидный JSON с результатами (не ошибку)
