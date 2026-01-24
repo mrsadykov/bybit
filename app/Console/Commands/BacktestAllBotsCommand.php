@@ -79,10 +79,6 @@ class BacktestAllBotsCommand extends Command
                 // Получаем только свежий вывод
                 $output = Artisan::output();
                 
-                // Очищаем буфер для следующего вызова
-                Artisan::call('strategy:backtest', ['symbol' => 'DUMMY', '--json' => true]);
-                Artisan::output(); // Очищаем
-                
                 // Извлекаем JSON из вывода - ищем первый валидный JSON с результатами (не ошибку)
                 $result = null;
                 
