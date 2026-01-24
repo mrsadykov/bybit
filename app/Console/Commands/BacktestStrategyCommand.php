@@ -62,6 +62,8 @@ class BacktestStrategyCommand extends Command
 
         // Получаем исторические данные напрямую через публичный API
         // (для бэктестинга не нужны API ключи, только публичные данные)
+        $candleList = [];
+        
         if (!$jsonMode) {
             $this->info("Получение исторических данных (Fetching historical data)...");
         }
@@ -79,7 +81,8 @@ class BacktestStrategyCommand extends Command
 
             if (empty($candles)) {
                 if ($jsonMode) {
-                    echo json_encode(['error' => 'Failed to fetch historical data'], JSON_UNESCAPED_UNICODE);
+                    // В режиме JSON возвращаем ошибку
+                    fwrite(STDOUT, json_encode(['error' => 'No candles data received'], JSON_UNESCAPED_UNICODE) . "\n");
                 } else {
                     $this->error("Не удалось получить исторические данные (Failed to fetch historical data)");
                 }
@@ -87,7 +90,6 @@ class BacktestStrategyCommand extends Command
             }
 
             // Обрабатываем свечи (разные форматы)
-            $candleList = [];
             foreach ($candles as $candle) {
                 if ($exchangeName === 'bybit') {
                     // Bybit: [timestamp, open, high, low, close, volume]
@@ -124,10 +126,22 @@ class BacktestStrategyCommand extends Command
             }
 
         } catch (\Throwable $e) {
+            // В режиме JSON возвращаем ошибку
             if ($jsonMode) {
-                echo json_encode(['error' => 'Data fetch error: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+                fwrite(STDOUT, json_encode(['error' => 'Data fetch error: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE) . "\n");
             } else {
                 $this->error("Ошибка получения данных (Data fetch error): " . $e->getMessage());
+            }
+            return self::FAILURE;
+        }
+
+        // Проверяем, что есть данные для бэктестинга
+        if (empty($candleList) || count($candleList) < max($rsiPeriod, $emaPeriod)) {
+            if ($jsonMode) {
+                // В режиме JSON возвращаем ошибку
+                fwrite(STDOUT, json_encode(['error' => 'Not enough candle data', 'candles_count' => count($candleList)], JSON_UNESCAPED_UNICODE) . "\n");
+            } else {
+                $this->error("Недостаточно данных для бэктестинга (Not enough data for backtest). Получено свечей: " . count($candleList));
             }
             return self::FAILURE;
         }
@@ -156,7 +170,8 @@ class BacktestStrategyCommand extends Command
         // Выводим результаты
         if ($this->option('json')) {
             // В режиме JSON выводим только JSON, без дополнительных сообщений
-            echo json_encode($results, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            // Используем STDOUT напрямую для чистого вывода
+            fwrite(STDOUT, json_encode($results, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
             return self::SUCCESS;
         } else {
             $this->displayResults($results);
@@ -427,14 +442,26 @@ class BacktestStrategyCommand extends Command
             // OKX требует формат BTC-USDT вместо BTCUSDT
             $okxSymbol = $this->formatOkxSymbol($symbol);
             
+            // OKX требует специфический формат интервалов
             $intervalMap = [
-                '1' => '1m', '3' => '3m', '5' => '5m', '15' => '15m', '30' => '30m',
-                '60' => '1H', '120' => '2H', '240' => '4H', '360' => '6H', '720' => '12H',
-                'D' => '1D', 'W' => '1W', 'M' => '1M',
-                '1m' => '1m', '5m' => '5m', '15m' => '15m', '1h' => '1H', '1H' => '1H',
-                '1d' => '1D', '1D' => '1D',
+                // Минуты
+                '1m' => '1m', '1' => '1m',
+                '3m' => '3m', '3' => '3m',
+                '5m' => '5m', '5' => '5m',
+                '15m' => '15m', '15' => '15m',
+                '30m' => '30m', '30' => '30m',
+                // Часы (OKX требует заглавную H)
+                '1h' => '1H', '1H' => '1H', '60' => '1H',
+                '2h' => '2H', '2H' => '2H', '120' => '2H',
+                '4h' => '4H', '4H' => '4H', '240' => '4H',
+                '6h' => '6H', '6H' => '6H', '360' => '6H',
+                '12h' => '12H', '12H' => '12H', '720' => '12H',
+                // Дни (OKX требует заглавную D)
+                '1d' => '1D', '1D' => '1D', 'D' => '1D',
+                '1w' => '1W', '1W' => '1W', 'W' => '1W',
+                '1M' => '1M', 'M' => '1M',
             ];
-            $okxInterval = $intervalMap[$timeframe] ?? $timeframe;
+            $okxInterval = $intervalMap[strtolower($timeframe)] ?? $timeframe;
             
             $url = 'https://www.okx.com/api/v5/market/candles?' . http_build_query([
                 'instId' => $okxSymbol,
@@ -443,10 +470,21 @@ class BacktestStrategyCommand extends Command
             ]);
             
             $response = Http::timeout(10)->withoutVerifying()->get($url);
+            
+            if (!$response->successful()) {
+                throw new \RuntimeException("OKX API HTTP error: Status " . $response->status() . " (Symbol: {$okxSymbol}, URL: {$url})");
+            }
+            
             $json = $response->json();
             
+            if (!is_array($json)) {
+                throw new \RuntimeException("OKX API invalid response: " . substr($response->body(), 0, 200) . " (Symbol: {$okxSymbol})");
+            }
+            
             if (($json['code'] ?? '0') !== '0') {
-                throw new \RuntimeException("OKX API error: " . ($json['msg'] ?? 'Unknown error'));
+                $msg = $json['msg'] ?? 'Unknown error';
+                $code = $json['code'] ?? 'Unknown';
+                throw new \RuntimeException("OKX API error: {$msg} (Code: {$code}, Symbol: {$okxSymbol}, Original: {$symbol})");
             }
             
             return $json;
