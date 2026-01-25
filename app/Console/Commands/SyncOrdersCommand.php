@@ -207,15 +207,17 @@ class SyncOrdersCommand extends Command
                         }
 
                         // Закрываем все BUY позиции, которые были проданы этим SELL (FIFO)
+                        // ВАЖНО: Закрываем только BUY позиции, которые были созданы ДО этой SELL сделки
                         $remainingSellQty = $trade->quantity;
                         $closedPositions = 0;
                         $totalPnL = 0;
 
-                        // Получаем все открытые BUY позиции (FIFO)
+                        // Получаем все открытые BUY позиции, которые были созданы ДО этой SELL сделки (FIFO)
                         $openBuys = Trade::where('trading_bot_id', $trade->bot->id)
                             ->where('side', 'BUY')
                             ->where('status', 'FILLED')
                             ->whereNull('closed_at')
+                            ->where('created_at', '<=', $trade->created_at) // Только BUY, созданные до SELL
                             ->orderBy('filled_at', 'asc')
                             ->orderBy('id', 'asc')
                             ->get();
