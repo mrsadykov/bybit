@@ -159,6 +159,8 @@ class RunTradingBotsCommand extends Command
             | STOP-LOSS / TAKE-PROFIT CHECK
             |--------------------------------------------------------------------------
             */
+            $actionTaken = false; // Флаг для отслеживания выполненных действий
+            
             if ($netPosition > 0 && ($bot->stop_loss_percent || $bot->take_profit_percent)) {
                 // Получаем все открытые BUY позиции
                 $openBuys = Trade::where('trading_bot_id', $bot->id)
@@ -241,6 +243,8 @@ class RunTradingBotsCommand extends Command
                                             'reason' => $reason,
                                             'price_change' => $priceChange,
                                         ]);
+                                        
+                                        $actionTaken = true; // Действие выполнено
                                     } catch (\Throwable $e) {
                                         $telegram->notifyError("SELL ({$reason})", $e->getMessage());
                                         $sell->update([
@@ -248,6 +252,7 @@ class RunTradingBotsCommand extends Command
                                             'exchange_response' => ['error' => $e->getMessage()],
                                         ]);
                                         $this->error("SELL ({$reason}) exception: " . $e->getMessage());
+                                        $actionTaken = true; // Действие было попыткой, даже если не удалось
                                     }
                                 }
                                 break; // Закрываем только одну позицию за раз
@@ -721,11 +726,14 @@ class RunTradingBotsCommand extends Command
                     ]);
                 }
 
+                $actionTaken = true; // Действие выполнено
                 continue;
             }
 
-            // HOLD сигнал - No action taken
-            $this->info('Действий не предпринято (No action taken)');
+            // HOLD сигнал - No action taken (только если не было других действий)
+            if (!$actionTaken) {
+                $this->info('Действий не предпринято (No action taken)');
+            }
             
             // Логирование перед отправкой HOLD
             logger()->info('Sending HOLD notification', [
