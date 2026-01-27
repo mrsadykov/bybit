@@ -2,10 +2,15 @@
 
 ## Быстрая проверка
 
-### 1. Запустите команду с флагом `--verbose`:
+### 1. Запустите команду с флагом `-v` (verbose):
 
 ```bash
-php artisan telegram:heartbeat --verbose
+php artisan telegram:heartbeat -v
+```
+
+Или с максимальной детализацией:
+```bash
+php artisan telegram:heartbeat -vv
 ```
 
 Это покажет:
@@ -50,7 +55,7 @@ tail -n 100 /var/www/trading-bot/storage/logs/laravel.log | grep -i "telegram.*h
    ```env
    TELEGRAM_HEALTH_CHAT_ID=ВАШ_CHAT_ID
    ```
-3. Перезапустите команду: `php artisan telegram:heartbeat --verbose`
+3. Перезапустите команду: `php artisan telegram:heartbeat -v`
 
 ---
 
@@ -130,7 +135,7 @@ tail -n 100 /var/www/trading-bot/storage/logs/laravel.log | grep -i "telegram.*h
 ### Шаг 1: Проверка конфигурации
 
 ```bash
-php artisan telegram:heartbeat --verbose
+php artisan telegram:heartbeat -v
 ```
 
 **Ожидаемый вывод при правильной настройке:**
@@ -156,7 +161,7 @@ Main Bot Token: 8507563866...
 ## Быстрая диагностика одной командой
 
 ```bash
-php artisan telegram:heartbeat --verbose && echo "✅ SUCCESS" || echo "❌ FAILED - check logs"
+php artisan telegram:heartbeat -v && echo "✅ SUCCESS" || echo "❌ FAILED - check logs"
 ```
 
 ---

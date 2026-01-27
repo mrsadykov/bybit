@@ -8,12 +8,13 @@ use Illuminate\Support\Facades\Log;
 
 class TelegramHeartbeatCommand extends Command
 {
-    protected $signature = 'telegram:heartbeat {--verbose : Show detailed output}';
+    protected $signature = 'telegram:heartbeat';
     protected $description = 'Send heartbeat to health chat (server up). Run via cron; if messages stop, server is down.';
 
     public function handle(): int
     {
-        $verbose = $this->option('verbose');
+        // Используем встроенную опцию -v (verbose) из Laravel
+        $verbose = $this->getOutput()->isVerbose();
         
         $healthChatId = config('services.telegram.health_chat_id');
         $healthBotToken = config('services.telegram.health_bot_token');
