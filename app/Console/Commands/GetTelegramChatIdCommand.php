@@ -48,11 +48,27 @@ class GetTelegramChatIdCommand extends Command
         }
 
         $this->line('');
+        $this->warn('⚠️  ВАЖНО: Отправьте /start боту ПРЯМО СЕЙЧАС, затем нажмите ENTER!');
+        $this->line('(IMPORTANT: Send /start to your bot RIGHT NOW, then press ENTER!)');
+        $this->line('');
+        
+        if (!$this->confirm('Вы отправили /start боту? (Did you send /start to your bot?)', false)) {
+            $this->line('');
+            $this->warn('Пожалуйста, сначала отправьте /start боту, затем запустите команду снова.');
+            return self::FAILURE;
+        }
+
+        $this->line('');
         $this->line('Fetching updates from Telegram API...');
         $this->line('');
 
         try {
-            $response = Http::timeout(10)->get("https://api.telegram.org/bot{$token}/getUpdates");
+            // Используем offset=-1 чтобы получить только последние обновления
+            // и timeout=0 чтобы не ждать новых
+            $response = Http::timeout(10)->get("https://api.telegram.org/bot{$token}/getUpdates", [
+                'offset' => -1,
+                'timeout' => 0,
+            ]);
 
             if (!$response->successful()) {
                 $this->error('Failed to connect to Telegram API');
@@ -82,10 +98,17 @@ class GetTelegramChatIdCommand extends Command
                 $this->line('  2. Wait 2-3 seconds');
                 $this->line('  3. Run this command again immediately');
                 $this->line('');
-                $this->line('Or use @userinfobot to get your Chat ID:');
+                $this->info('💡 ЛУЧШИЙ СПОСОБ (BEST WAY): Используйте @userinfobot');
+                $this->line('');
                 $this->line('  1. Open @userinfobot in Telegram');
-                $this->line('  2. Send any message');
-                $this->line('  3. It will return your Chat ID');
+                $this->line('  2. Send any message (например, /start)');
+                $this->line('  3. Bot will return your Chat ID');
+                $this->line('  4. Copy that Chat ID and use it as TELEGRAM_HEALTH_CHAT_ID');
+                $this->line('');
+                $this->line('  Для группы (For group):');
+                $this->line('  - Add @userinfobot to your group');
+                $this->line('  - Send any message in group');
+                $this->line('  - Bot will return group Chat ID');
                 return self::FAILURE;
             }
 

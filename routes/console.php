@@ -11,6 +11,7 @@ Artisan::command('inspire', function () {
 // Планировщик задач
 Schedule::command('bots:run')->everyFiveMinutes();
 Schedule::command('orders:sync')->everyMinute();
+Schedule::command('telegram:heartbeat')->everyFiveMinutes();
 Schedule::command('telegram:daily-stats')->dailyAt('09:00');
 // Закрытие маленьких позиций (< 1 USDT) каждый день в 3:00
 Schedule::command('positions:close-small')->dailyAt('17:26')->withoutOverlapping();

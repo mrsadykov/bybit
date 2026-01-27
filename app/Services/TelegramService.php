@@ -9,11 +9,15 @@ class TelegramService
 {
     private ?string $botToken;
     private ?string $chatId;
+    private ?string $healthBotToken;
+    private ?string $healthChatId;
 
     public function __construct()
     {
         $this->botToken = config('services.telegram.bot_token');
         $this->chatId = config('services.telegram.chat_id');
+        $this->healthBotToken = config('services.telegram.health_bot_token');
+        $this->healthChatId = config('services.telegram.health_chat_id');
     }
 
     /**
@@ -241,5 +245,47 @@ class TelegramService
         $message .= "🤖 Активных ботов (Active Bots): <b>{$activeBots}</b>";
 
         $this->sendMessage($message);
+    }
+
+    /**
+     * Отправить сообщение в отдельный чат «мониторинг сервера» (heartbeat).
+     * Использует отдельный токен health-бота, если задан TELEGRAM_HEALTH_BOT_TOKEN.
+     * Если TELEGRAM_HEALTH_CHAT_ID не задан — отправка не выполняется.
+     */
+    public function sendToHealthChat(string $message, ?string $parseMode = 'HTML'): bool
+    {
+        // Используем отдельный токен для health-бота, если задан, иначе основной токен
+        $token = $this->healthBotToken ?: $this->botToken;
+        
+        if (!$token || !$this->healthChatId) {
+            return false;
+        }
+
+        try {
+            $response = Http::timeout(10)->post("https://api.telegram.org/bot{$token}/sendMessage", [
+                'chat_id' => $this->healthChatId,
+                'text' => $message,
+                'parse_mode' => $parseMode ?? 'HTML',
+            ]);
+
+            return $response->successful() && ($response->json()['ok'] ?? false);
+        } catch (\Throwable $e) {
+            Log::error('Telegram health chat send error', [
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Heartbeat: «сервер работает». Вызывается по расписанию (например, каждые 5 мин).
+     * Если сообщения перестают приходить — сервер, скорее всего, упал.
+     */
+    public function notifyHeartbeat(): void
+    {
+        $message = "🟢 <b>СЕРВЕР РАБОТАЕТ (SERVER UP)</b>\n\n";
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+
+        $this->sendToHealthChat($message);
     }
 }

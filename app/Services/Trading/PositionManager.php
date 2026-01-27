@@ -53,4 +53,33 @@ class PositionManager
 
         return [true, $qty];
     }
+
+    /**
+     * Проверка минимального размера для SELL ордера
+     * Возвращает [passed, minQty] где passed = true если количество >= минимума
+     * 
+     * @param string $symbol Торговая пара (например: BTCUSDT)
+     * @param float $qty Количество для продажи
+     * @return array [bool $passed, float $minQty] - прошла ли проверка и минимальное количество
+     */
+    public function passesMinSell(string $symbol, float $qty): array
+    {
+        // Минимальные размеры для популярных пар на OKX
+        // Источник: OKX API /public/instruments или документация
+        $minQuantities = [
+            'BTCUSDT' => 0.00001,  // 0.00001 BTC
+            'ETHUSDT' => 0.001,    // 0.001 ETH
+            'SOLUSDT' => 0.01,     // 0.01 SOL
+            'BNBUSDT' => 0.001,    // 0.001 BNB
+            // Добавьте другие пары по необходимости
+        ];
+
+        $minQty = $minQuantities[$symbol] ?? 0.00001; // По умолчанию 0.00001
+
+        if ($qty < $minQty) {
+            return [false, $minQty];
+        }
+
+        return [true, $minQty];
+    }
 }

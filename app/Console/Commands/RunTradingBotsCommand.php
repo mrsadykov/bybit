@@ -197,6 +197,14 @@ class RunTradingBotsCommand extends Command
                             $btcQty = $exchangeService->getBalance($baseCoin);
                             
                             if ($btcQty > 0) {
+                                // Проверка минимального размера ордера для SELL (SL/TP)
+                                [$passesMin, $minQty] = $positionManager->passesMinSell($bot->symbol, $btcQty);
+                                if (!$passesMin) {
+                                    $this->warn("Количество {$btcQty} {$baseCoin} меньше минимума {$minQty} {$baseCoin} — пропуск SELL ({$reason}) (Quantity {$btcQty} {$baseCoin} is less than minimum {$minQty} {$baseCoin} — skip SELL ({$reason}))");
+                                    $telegram->notifySkip('SELL', "Количество слишком мало для {$reason} (Quantity too small: {$btcQty} < {$minQty})");
+                                    continue;
+                                }
+
                                 // Проверка dry_run
                                 if (!config('trading.real_trading') || $bot->dry_run) {
                                     $this->warn("ТЕСТОВЫЙ РЕЖИМ SELL ({$reason}) (DRY RUN SELL) {$btcQty} {$baseCoin}");
@@ -547,6 +555,14 @@ class RunTradingBotsCommand extends Command
                 if ($btcQty <= 0) {
                     $this->line('Баланс недоступен — пропуск SELL (No balance available — skip SELL)');
                     $telegram->notifySkip('SELL', 'Баланс недоступен (No balance available)');
+                    continue;
+                }
+
+                // Проверка минимального размера ордера для SELL
+                [$passesMin, $minQty] = $positionManager->passesMinSell($bot->symbol, $btcQty);
+                if (!$passesMin) {
+                    $this->warn("Количество {$btcQty} {$baseCoin} меньше минимума {$minQty} {$baseCoin} — пропуск SELL (Quantity {$btcQty} {$baseCoin} is less than minimum {$minQty} {$baseCoin} — skip SELL)");
+                    $telegram->notifySkip('SELL', "Количество слишком мало (Quantity too small: {$btcQty} < {$minQty})");
                     continue;
                 }
 
