@@ -107,12 +107,12 @@ class TelegramService
      */
     public function notifyBuy(string $symbol, float $amount, float $price, bool $isDryRun = false): void
     {
-        $mode = $isDryRun ? '🔵 ТЕСТОВЫЙ РЕЖИМ (DRY RUN)' : '🟢 РЕАЛЬНАЯ СДЕЛКА (REAL)';
-        $message = "{$mode} <b>ОРДЕР НА ПОКУПКУ (BUY ORDER)</b>\n\n";
-        $message .= "Символ (Symbol): <b>{$symbol}</b>\n";
-        $message .= "Сумма (Amount): <b>{$amount} USDT</b>\n";
-        $message .= "Цена (Price): <b>\${$price}</b>\n";
-        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $mode = $isDryRun ? '🔵 DRY RUN' : '🟢 REAL TRADE';
+        $message = "{$mode} <b>BUY ORDER</b>\n\n";
+        $message .= "Symbol: <b>{$symbol}</b>\n";
+        $message .= "Amount: <b>{$amount} USDT</b>\n";
+        $message .= "Price: <b>\${$price}</b>\n";
+        $message .= "Time: " . now()->format('Y-m-d H:i:s');
 
         $this->sendMessage($message);
     }
@@ -122,12 +122,12 @@ class TelegramService
      */
     public function notifySell(string $symbol, float $quantity, float $price, bool $isDryRun = false): void
     {
-        $mode = $isDryRun ? '🔵 ТЕСТОВЫЙ РЕЖИМ (DRY RUN)' : '🟢 РЕАЛЬНАЯ СДЕЛКА (REAL)';
-        $message = "{$mode} <b>ОРДЕР НА ПРОДАЖУ (SELL ORDER)</b>\n\n";
-        $message .= "Символ (Symbol): <b>{$symbol}</b>\n";
-        $message .= "Количество (Quantity): <b>{$quantity}</b>\n";
-        $message .= "Цена (Price): <b>\${$price}</b>\n";
-        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $mode = $isDryRun ? '🔵 DRY RUN' : '🟢 REAL TRADE';
+        $message = "{$mode} <b>SELL ORDER</b>\n\n";
+        $message .= "Symbol: <b>{$symbol}</b>\n";
+        $message .= "Quantity: <b>{$quantity}</b>\n";
+        $message .= "Price: <b>\${$price}</b>\n";
+        $message .= "Time: " . now()->format('Y-m-d H:i:s');
 
         $this->sendMessage($message);
     }
@@ -137,10 +137,10 @@ class TelegramService
      */
     public function notifySkip(string $action, string $reason): void
     {
-        $message = "⚠️ <b>СДЕЛКА ПРОПУЩЕНА (TRADE SKIPPED)</b>\n\n";
-        $message .= "Действие (Action): <b>{$action}</b>\n";
-        $message .= "Причина (Reason): {$reason}\n";
-        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $message = "⚠️ <b>TRADE SKIPPED</b>\n\n";
+        $message .= "Action: <b>{$action}</b>\n";
+        $message .= "Reason: {$reason}\n";
+        $message .= "Time: " . now()->format('Y-m-d H:i:s');
 
         $this->sendMessage($message);
     }
@@ -150,10 +150,10 @@ class TelegramService
      */
     public function notifyError(string $action, string $error): void
     {
-        $message = "❌ <b>ОШИБКА (ERROR)</b>\n\n";
-        $message .= "Действие (Action): <b>{$action}</b>\n";
-        $message .= "Ошибка (Error): <code>{$error}</code>\n";
-        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $message = "❌ <b>ERROR</b>\n\n";
+        $message .= "Action: <b>{$action}</b>\n";
+        $message .= "Error: <code>{$error}</code>\n";
+        $message .= "Time: " . now()->format('Y-m-d H:i:s');
 
         $this->sendMessage($message);
     }
@@ -164,18 +164,18 @@ class TelegramService
     public function notifyFilled(string $side, string $symbol, float $quantity, float $price, float $fee = 0): void
     {
         $emoji = $side === 'BUY' ? '✅' : '💰';
-        $sideText = $side === 'BUY' ? 'ПОКУПКА (BUY)' : 'ПРОДАЖА (SELL)';
-        $message = "{$emoji} <b>ОРДЕР ИСПОЛНЕН (ORDER FILLED)</b>\n\n";
-        $message .= "Сторона (Side): <b>{$sideText}</b>\n";
-        $message .= "Символ (Symbol): <b>{$symbol}</b>\n";
-        $message .= "Количество (Quantity): <b>{$quantity}</b>\n";
-        $message .= "Цена (Price): <b>\${$price}</b>\n";
+        $sideText = $side === 'BUY' ? 'BUY' : 'SELL';
+        $message = "{$emoji} <b>ORDER FILLED</b>\n\n";
+        $message .= "Side: <b>{$sideText}</b>\n";
+        $message .= "Symbol: <b>{$symbol}</b>\n";
+        $message .= "Quantity: <b>{$quantity}</b>\n";
+        $message .= "Price: <b>\${$price}</b>\n";
         
         if ($fee > 0) {
-            $message .= "Комиссия (Fee): <b>{$fee}</b>\n";
+            $message .= "Fee: <b>{$fee}</b>\n";
         }
         
-        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $message .= "Time: " . now()->format('Y-m-d H:i:s');
 
         $this->sendMessage($message);
     }
@@ -185,9 +185,9 @@ class TelegramService
      */
     public function notifyBotRunStart(int $botCount): void
     {
-        $message = "🚀 <b>ЗАПУСК БОТОВ (BOTS RUN STARTED)</b>\n\n";
-        $message .= "Активных ботов (Active bots): <b>{$botCount}</b>\n";
-        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $message = "🚀 <b>BOTS RUN STARTED</b>\n\n";
+        $message .= "Active bots: <b>{$botCount}</b>\n";
+        $message .= "Time: " . now()->format('Y-m-d H:i:s');
 
         $this->sendMessage($message);
     }
@@ -197,10 +197,10 @@ class TelegramService
      */
     public function notifyHold(string $symbol, float $price, string $signal, float $rsi = null, float $ema = null): void
     {
-        $message = "⏸️ <b>ДЕЙСТВИЙ НЕ ПРЕДПРИНЯТО (NO ACTION TAKEN)</b>\n\n";
-        $message .= "Символ (Symbol): <b>{$symbol}</b>\n";
-        $message .= "Цена (Price): <b>\${$price}</b>\n";
-        $message .= "Сигнал (Signal): <b>{$signal}</b>\n";
+        $message = "⏸️ <b>NO ACTION TAKEN</b>\n\n";
+        $message .= "Symbol: <b>{$symbol}</b>\n";
+        $message .= "Price: <b>\${$price}</b>\n";
+        $message .= "Signal: <b>{$signal}</b>\n";
         
         if ($rsi !== null) {
             $message .= "RSI: <b>" . round($rsi, 2) . "</b>\n";
@@ -209,7 +209,7 @@ class TelegramService
             $message .= "EMA: <b>" . round($ema, 2) . "</b>\n";
         }
         
-        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $message .= "Time: " . now()->format('Y-m-d H:i:s');
 
         $this->sendMessage($message);
     }
@@ -232,17 +232,17 @@ class TelegramService
         $pnlEmoji = $totalPnL >= 0 ? '📈' : '📉';
         $pnlSign = $totalPnL >= 0 ? '+' : '';
 
-        $message = "📊 <b>ЕЖЕДНЕВНАЯ СТАТИСТИКА (DAILY STATISTICS)</b>\n\n";
-        $message .= "Дата (Date): <b>{$date}</b>\n\n";
+        $message = "📊 <b>DAILY STATISTICS</b>\n\n";
+        $message .= "Date: <b>{$date}</b>\n\n";
         
         $message .= "💰 <b>PnL: {$pnlSign}" . number_format($totalPnL, 8) . " USDT</b> {$pnlEmoji}\n";
-        $message .= "📊 Закрытых позиций (Closed Positions): <b>{$closedPositions}</b>\n";
-        $message .= "📈 Прибыльных сделок (Winning Trades): <b>{$winningTrades}</b>\n";
-        $message .= "📉 Убыточных сделок (Losing Trades): <b>{$losingTrades}</b>\n";
-        $message .= "🎯 Процент побед (Win Rate): <b>{$winRate}%</b>\n";
-        $message .= "📦 Всего сделок (Total Trades): <b>{$totalTrades}</b>\n";
-        $message .= "🔓 Открытых позиций (Open Positions): <b>{$openPositions}</b>\n";
-        $message .= "🤖 Активных ботов (Active Bots): <b>{$activeBots}</b>";
+        $message .= "📊 Closed Positions: <b>{$closedPositions}</b>\n";
+        $message .= "📈 Winning Trades: <b>{$winningTrades}</b>\n";
+        $message .= "📉 Losing Trades: <b>{$losingTrades}</b>\n";
+        $message .= "🎯 Win Rate: <b>{$winRate}%</b>\n";
+        $message .= "📦 Total Trades: <b>{$totalTrades}</b>\n";
+        $message .= "🔓 Open Positions: <b>{$openPositions}</b>\n";
+        $message .= "🤖 Active Bots: <b>{$activeBots}</b>";
 
         $this->sendMessage($message);
     }
@@ -306,8 +306,8 @@ class TelegramService
      */
     public function notifyHeartbeat(): bool
     {
-        $message = "🟢 <b>СЕРВЕР РАБОТАЕТ (SERVER UP)</b>\n\n";
-        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $message = "🟢 <b>SERVER UP</b>\n\n";
+        $message .= "Time: " . now()->format('Y-m-d H:i:s');
 
         return $this->sendToHealthChat($message);
     }
