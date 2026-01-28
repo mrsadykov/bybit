@@ -2,6 +2,22 @@
 
 ## Быстрая проверка
 
+### 0. ⚠️ ВАЖНО: Очистите кэш конфигурации!
+
+Если вы только что добавили `TELEGRAM_HEALTH_CHAT_ID` в `.env`, но команда его не видит:
+
+```bash
+php artisan config:clear
+php artisan cache:clear
+```
+
+Затем проверьте:
+```bash
+php artisan config:show services.telegram
+```
+
+Должны увидеть `health_chat_id` и `health_bot_token`.
+
 ### 1. Запустите команду с флагом `-v` (verbose):
 
 ```bash

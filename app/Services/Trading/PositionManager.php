@@ -66,15 +66,16 @@ class PositionManager
     {
         // Минимальные размеры для популярных пар на OKX
         // Источник: OKX API /public/instruments или документация
+        // ВАЖНО: Реальный минимум на OKX для BTC-USDT: 0.0001 BTC (не 0.00001!)
         $minQuantities = [
-            'BTCUSDT' => 0.00001,  // 0.00001 BTC
+            'BTCUSDT' => 0.0001,   // 0.0001 BTC (реальный минимум OKX)
             'ETHUSDT' => 0.001,    // 0.001 ETH
             'SOLUSDT' => 0.01,     // 0.01 SOL
             'BNBUSDT' => 0.001,    // 0.001 BNB
             // Добавьте другие пары по необходимости
         ];
 
-        $minQty = $minQuantities[$symbol] ?? 0.00001; // По умолчанию 0.00001
+        $minQty = $minQuantities[$symbol] ?? 0.0001; // По умолчанию 0.0001 (как для BTC)
 
         if ($qty < $minQty) {
             return [false, $minQty];
