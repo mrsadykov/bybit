@@ -113,7 +113,7 @@
                         <!-- EMA Period -->
                         <div class="mb-4">
                             <label for="ema_period" class="block text-sm font-medium text-gray-700 mb-2">
-                                EMA Период
+                                {{ __('bots.ema_period') }}
                             </label>
                             <input type="number" name="ema_period" id="ema_period" 
                                 value="{{ old('ema_period', '10') }}" step="1" min="2" max="200"
@@ -122,6 +122,33 @@
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
+
+                        <!-- RSI Buy / Sell Thresholds -->
+                        <div class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label for="rsi_buy_threshold" class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ __('bots.rsi_buy_threshold') }}
+                                </label>
+                                <input type="number" name="rsi_buy_threshold" id="rsi_buy_threshold" 
+                                    value="{{ old('rsi_buy_threshold') }}" step="0.01" min="20" max="80" placeholder="40"
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                @error('rsi_buy_threshold')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+                            <div>
+                                <label for="rsi_sell_threshold" class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ __('bots.rsi_sell_threshold') }}
+                                </label>
+                                <input type="number" name="rsi_sell_threshold" id="rsi_sell_threshold" 
+                                    value="{{ old('rsi_sell_threshold') }}" step="0.01" min="20" max="80" placeholder="60"
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                @error('rsi_sell_threshold')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+                        </div>
+                        <p class="mb-4 text-sm text-gray-500">{{ __('bots.rsi_thresholds_help') }}</p>
 
                         <!-- Stop Loss -->
                         <div class="mb-4">

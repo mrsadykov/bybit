@@ -102,6 +102,12 @@
                                 <div class="font-medium">{{ $bot->ema_period }}</div>
                             </div>
                         @endif
+                        @if($bot->rsi_buy_threshold !== null || $bot->rsi_sell_threshold !== null)
+                            <div>
+                                <div class="text-sm text-gray-500">{{ __('bots.rsi_buy_threshold') }} / {{ __('bots.rsi_sell_threshold') }}</div>
+                                <div class="font-medium">{{ $bot->rsi_buy_threshold ?? '—' }} / {{ $bot->rsi_sell_threshold ?? '—' }}</div>
+                            </div>
+                        @endif
                         @if($bot->stop_loss_percent)
                             <div>
                                 <div class="text-sm text-gray-500">{{ __('bots.stop_loss') }}</div>

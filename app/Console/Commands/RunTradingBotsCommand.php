@@ -133,7 +133,9 @@ class RunTradingBotsCommand extends Command
             | STRATEGY
             |--------------------------------------------------------------------------
             */
-            $signal = RsiEmaStrategy::decide($closes, $rsiPeriod, $emaPeriod);
+            $rsiBuy = $bot->rsi_buy_threshold !== null ? (float) $bot->rsi_buy_threshold : 40.0;
+            $rsiSell = $bot->rsi_sell_threshold !== null ? (float) $bot->rsi_sell_threshold : 60.0;
+            $signal = RsiEmaStrategy::decide($closes, $rsiPeriod, $emaPeriod, $rsiBuy, $rsiSell);
             $this->info("Сигнал (Signal): {$signal}");
 
             // Детальное логирование решения стратегии

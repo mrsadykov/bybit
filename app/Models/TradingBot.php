@@ -16,6 +16,8 @@ class TradingBot extends Model
         'strategy',
         'rsi_period',
         'ema_period',
+        'rsi_buy_threshold',
+        'rsi_sell_threshold',
         'position_size',
         'stop_loss_percent',
         'take_profit_percent',
@@ -28,11 +30,12 @@ class TradingBot extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'last_trade_at' => 'datetime',
-        // 8 знаков после запятой
         'position_size' => 'decimal:8',
         'stop_loss_percent' => 'decimal:2',
         'take_profit_percent' => 'decimal:2',
-        'dry_run' => 'boolean'
+        'rsi_buy_threshold' => 'decimal:2',
+        'rsi_sell_threshold' => 'decimal:2',
+        'dry_run' => 'boolean',
     ];
 
     public function user(): BelongsTo

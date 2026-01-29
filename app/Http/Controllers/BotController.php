@@ -50,10 +50,17 @@ class BotController extends Controller
             'take_profit_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'rsi_period' => ['nullable', 'integer', 'min:2', 'max:100'],
             'ema_period' => ['nullable', 'integer', 'min:2', 'max:200'],
+            'rsi_buy_threshold' => ['nullable', 'numeric', 'min:20', 'max:80'],
+            'rsi_sell_threshold' => ['nullable', 'numeric', 'min:20', 'max:80'],
             'dry_run' => ['nullable', 'boolean'],
         ]);
 
-        // Проверяем, что аккаунт принадлежит пользователю
+        $buy = isset($validated['rsi_buy_threshold']) && $validated['rsi_buy_threshold'] !== '' ? (float) $validated['rsi_buy_threshold'] : null;
+        $sell = isset($validated['rsi_sell_threshold']) && $validated['rsi_sell_threshold'] !== '' ? (float) $validated['rsi_sell_threshold'] : null;
+        if ($buy !== null && $sell !== null && $buy >= $sell) {
+            return back()->withErrors(['rsi_sell_threshold' => __('bots.rsi_sell_must_exceed_buy')])->withInput();
+        }
+
         $account = ExchangeAccount::where('id', $validated['exchange_account_id'])
             ->where('user_id', Auth::id())
             ->firstOrFail();
@@ -69,8 +76,10 @@ class BotController extends Controller
             'take_profit_percent' => $validated['take_profit_percent'] ?? null,
             'rsi_period' => $validated['rsi_period'] ?? null,
             'ema_period' => $validated['ema_period'] ?? null,
+            'rsi_buy_threshold' => $buy,
+            'rsi_sell_threshold' => $sell,
             'dry_run' => $validated['dry_run'] ?? false,
-            'is_active' => false, // По умолчанию неактивен
+            'is_active' => false,
         ]);
 
         return redirect()->route('bots.show', $bot)
@@ -208,16 +217,22 @@ class BotController extends Controller
             'take_profit_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'rsi_period' => ['nullable', 'integer', 'min:2', 'max:100'],
             'ema_period' => ['nullable', 'integer', 'min:2', 'max:200'],
+            'rsi_buy_threshold' => ['nullable', 'numeric', 'min:20', 'max:80'],
+            'rsi_sell_threshold' => ['nullable', 'numeric', 'min:20', 'max:80'],
             'dry_run' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
-        // Проверяем, что аккаунт принадлежит пользователю
+        $buy = isset($validated['rsi_buy_threshold']) && $validated['rsi_buy_threshold'] !== '' ? (float) $validated['rsi_buy_threshold'] : null;
+        $sell = isset($validated['rsi_sell_threshold']) && $validated['rsi_sell_threshold'] !== '' ? (float) $validated['rsi_sell_threshold'] : null;
+        if ($buy !== null && $sell !== null && $buy >= $sell) {
+            return back()->withErrors(['rsi_sell_threshold' => __('bots.rsi_sell_must_exceed_buy')])->withInput();
+        }
+
         $account = ExchangeAccount::where('id', $validated['exchange_account_id'])
             ->where('user_id', Auth::id())
             ->firstOrFail();
 
-        // Нормализуем таймфрейм: если число, конвертируем в формат "1h" для часов или "5m" для минут
         $timeframe = $this->normalizeTimeframeForStorage($validated['timeframe']);
 
         $bot->update([
@@ -230,6 +245,8 @@ class BotController extends Controller
             'take_profit_percent' => $validated['take_profit_percent'] ?? null,
             'rsi_period' => $validated['rsi_period'] ?? null,
             'ema_period' => $validated['ema_period'] ?? null,
+            'rsi_buy_threshold' => $buy,
+            'rsi_sell_threshold' => $sell,
             'dry_run' => $validated['dry_run'] ?? false,
             'is_active' => $validated['is_active'] ?? false,
         ]);
