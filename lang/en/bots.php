@@ -104,4 +104,8 @@ return [
     'max_drawdown_percent' => 'Max drawdown (%)',
     'max_drawdown_placeholder' => 'Empty = no limit',
     'max_drawdown_help' => 'When drawdown from cumulative PnL peak exceeds this, trading for this bot is paused (clear manually or change limit).',
+
+    // MACD (priority 3)
+    'use_macd_filter' => 'MACD filter (RSI+EMA+MACD)',
+    'use_macd_filter_help' => 'BUY only when MACD histogram ≥ 0, SELL only when histogram ≤ 0. Fewer false signals.',
 ];

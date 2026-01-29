@@ -28,4 +28,6 @@ return [
     'delete_account_confirm' => 'Are you sure you want to delete your account?',
     'delete_account_button' => 'Delete Account',
     'cancel' => 'Cancel',
+    'yes' => 'Yes',
+    'no' => 'No',
 ];

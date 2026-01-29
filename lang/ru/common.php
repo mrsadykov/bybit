@@ -28,4 +28,6 @@ return [
     'delete_account_confirm' => 'Вы уверены, что хотите удалить свой аккаунт?',
     'delete_account_button' => 'Удалить аккаунт',
     'cancel' => 'Отмена',
+    'yes' => 'Да',
+    'no' => 'Нет',
 ];

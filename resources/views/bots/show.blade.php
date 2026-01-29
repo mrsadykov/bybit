@@ -173,6 +173,10 @@
                             </div>
                         @endif
                         <div>
+                            <div class="text-sm text-gray-500">{{ __('bots.use_macd_filter') }}</div>
+                            <div class="font-medium">{{ $bot->use_macd_filter ? __('common.yes') : __('common.no') }}</div>
+                        </div>
+                        <div>
                             <div class="text-sm text-gray-500">{{ __('bots.exchange') }}</div>
                             <div class="font-medium">{{ strtoupper($bot->exchangeAccount->exchange ?? 'N/A') }}</div>
                         </div>

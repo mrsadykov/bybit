@@ -104,4 +104,8 @@ return [
     'max_drawdown_percent' => 'Макс. просадка (%)',
     'max_drawdown_placeholder' => 'Пусто = без лимита',
     'max_drawdown_help' => 'При превышении просадки от пика кумулятивного PnL торговля по боту приостанавливается (снять вручную или изменить лимит).',
+
+    // MACD (приоритет 3)
+    'use_macd_filter' => 'Фильтр MACD (RSI+EMA+MACD)',
+    'use_macd_filter_help' => 'BUY только при MACD histogram ≥ 0, SELL только при histogram ≤ 0. Меньше ложных сигналов.',
 ];
