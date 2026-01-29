@@ -80,6 +80,11 @@ class DashboardController extends Controller
 
         $closedPositionsCount = $closedPositions->count();
 
+        // Данные для графиков (последние 30 дней)
+        $chartPnlByDay = $this->getPnlByDay($userBotIds, 30);
+        $chartTradesByDay = $this->getTradesCountByDay($userBotIds, 30);
+        $chartCumulativePnL = $this->getCumulativePnL($userBotIds, 30);
+
         // Получаем сохраненную статистику из БД
         // Приоритет: сначала за все время (days_period = 0), потом за 30 дней
         $today = now()->format('Y-m-d');
@@ -174,8 +179,94 @@ class DashboardController extends Controller
             'worstTrade',
             'savedStats',
             'accountBalances',
-            'totalBalanceUsdt'
+            'totalBalanceUsdt',
+            'chartPnlByDay',
+            'chartTradesByDay',
+            'chartCumulativePnL'
         ));
+    }
+
+    /**
+     * PnL по дням за последние N дней (по closed_at).
+     */
+    protected function getPnlByDay(\Illuminate\Support\Collection $userBotIds, int $days): array
+    {
+        $from = now()->subDays($days)->startOfDay();
+        $closed = Trade::whereIn('trading_bot_id', $userBotIds)
+            ->whereNotNull('closed_at')
+            ->whereNotNull('realized_pnl')
+            ->where('closed_at', '>=', $from)
+            ->get();
+        $byDay = [];
+        foreach (range(0, $days - 1) as $i) {
+            $date = now()->subDays($days - 1 - $i)->format('Y-m-d');
+            $byDay[$date] = 0;
+        }
+        foreach ($closed as $trade) {
+            $d = $trade->closed_at->format('Y-m-d');
+            if (isset($byDay[$d])) {
+                $byDay[$d] += (float) $trade->realized_pnl;
+            }
+        }
+        return [
+            'labels' => array_keys($byDay),
+            'data' => array_values($byDay),
+        ];
+    }
+
+    /**
+     * Количество сделок (закрытых) по дням за последние N дней.
+     */
+    protected function getTradesCountByDay(\Illuminate\Support\Collection $userBotIds, int $days): array
+    {
+        $from = now()->subDays($days)->startOfDay();
+        $closed = Trade::whereIn('trading_bot_id', $userBotIds)
+            ->whereNotNull('closed_at')
+            ->where('closed_at', '>=', $from)
+            ->get();
+        $byDay = [];
+        foreach (range(0, $days - 1) as $i) {
+            $date = now()->subDays($days - 1 - $i)->format('Y-m-d');
+            $byDay[$date] = 0;
+        }
+        foreach ($closed as $trade) {
+            $d = $trade->closed_at->format('Y-m-d');
+            if (isset($byDay[$d])) {
+                $byDay[$d]++;
+            }
+        }
+        return [
+            'labels' => array_keys($byDay),
+            'data' => array_values($byDay),
+        ];
+    }
+
+    /**
+     * Кумулятивный PnL по дням (кривая эквити) за последние N дней.
+     */
+    protected function getCumulativePnL(\Illuminate\Support\Collection $userBotIds, int $days): array
+    {
+        $from = now()->subDays($days)->startOfDay();
+        $closed = Trade::whereIn('trading_bot_id', $userBotIds)
+            ->whereNotNull('closed_at')
+            ->whereNotNull('realized_pnl')
+            ->where('closed_at', '>=', $from)
+            ->orderBy('closed_at')
+            ->get();
+        $labels = [];
+        $data = [];
+        $cum = 0;
+        foreach (range(0, $days - 1) as $i) {
+            $date = now()->subDays($days - 1 - $i)->format('Y-m-d');
+            $labels[] = $date;
+            $dayPnL = $closed->filter(fn ($t) => $t->closed_at->format('Y-m-d') === $date)->sum('realized_pnl');
+            $cum += (float) $dayPnL;
+            $data[] = round($cum, 4);
+        }
+        return [
+            'labels' => $labels,
+            'data' => $data,
+        ];
     }
 
     protected function calculateMaxDrawdown($closedPositions): float

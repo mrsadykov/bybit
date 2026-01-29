@@ -100,21 +100,32 @@ class BotController extends Controller
             $query->latest()->limit(50);
         }]);
 
-        // Статистика по боту
+        // Закрытые позиции по боту (все, для статистики)
+        $closedPositionsAll = $bot->trades()->whereNotNull('closed_at')->whereNotNull('realized_pnl')->get();
         $trades = $bot->trades;
         $filledTrades = $trades->where('status', 'FILLED');
-        $closedPositions = $trades->whereNotNull('closed_at')->whereNotNull('realized_pnl');
-        
+        $closedPositions = $closedPositionsAll;
+
+        $totalProfit = $closedPositions->where('realized_pnl', '>', 0)->sum('realized_pnl');
+        $totalLoss = abs($closedPositions->where('realized_pnl', '<', 0)->sum('realized_pnl'));
+        $profitFactor = $totalLoss > 0 ? round($totalProfit / $totalLoss, 2) : ($totalProfit > 0 ? 999 : 0);
+        $maxDrawdown = $this->calculateMaxDrawdown($closedPositions);
+
         $stats = [
-            'total_trades' => $trades->count(),
-            'filled_trades' => $filledTrades->count(),
+            'total_trades' => $bot->trades()->count(),
+            'filled_trades' => $bot->trades()->where('status', 'FILLED')->count(),
             'closed_positions' => $closedPositions->count(),
-            'total_pnl' => $closedPositions->sum('realized_pnl'),
+            'total_pnl' => (float) $closedPositions->sum('realized_pnl'),
             'winning_trades' => $closedPositions->where('realized_pnl', '>', 0)->count(),
             'losing_trades' => $closedPositions->where('realized_pnl', '<', 0)->count(),
-            'win_rate' => $closedPositions->count() > 0 
+            'win_rate' => $closedPositions->count() > 0
                 ? round(($closedPositions->where('realized_pnl', '>', 0)->count() / $closedPositions->count()) * 100, 2)
                 : 0,
+            'avg_pnl' => $closedPositions->count() > 0 ? round($closedPositions->sum('realized_pnl') / $closedPositions->count(), 4) : 0,
+            'profit_factor' => $profitFactor,
+            'max_drawdown' => $maxDrawdown,
+            'best_trade' => $closedPositions->count() > 0 ? (float) $closedPositions->max('realized_pnl') : 0,
+            'worst_trade' => $closedPositions->count() > 0 ? (float) $closedPositions->min('realized_pnl') : 0,
         ];
 
         // График PnL по дням
@@ -287,5 +298,27 @@ class BotController extends Controller
 
         return redirect()->back()
             ->with('success', $bot->is_active ? __('bots.bot_activated') : __('bots.bot_deactivated'));
+    }
+
+    protected function calculateMaxDrawdown($closedPositions): float
+    {
+        if ($closedPositions->isEmpty()) {
+            return 0;
+        }
+        $sortedTrades = $closedPositions->sortBy('closed_at');
+        $cumulativePnL = 0;
+        $peak = 0;
+        $maxDrawdown = 0;
+        foreach ($sortedTrades as $trade) {
+            $cumulativePnL += (float) $trade->realized_pnl;
+            if ($cumulativePnL > $peak) {
+                $peak = $cumulativePnL;
+            }
+            $drawdown = $peak - $cumulativePnL;
+            if ($drawdown > $maxDrawdown) {
+                $maxDrawdown = $drawdown;
+            }
+        }
+        return (float) $maxDrawdown;
     }
 }

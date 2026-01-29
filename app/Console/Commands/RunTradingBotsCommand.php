@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Trade;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 use App\Models\TradingBot;
 use App\Services\Exchanges\ExchangeServiceFactory;
 use App\Services\Trading\PositionManager;
@@ -777,8 +778,88 @@ class RunTradingBotsCommand extends Command
             }
         }
 
+        // Алерты по лимитам (если заданы в config)
+        $this->checkTradingAlerts($bots);
+
         $this->info('Все боты обработаны (All bots processed).');
         return self::SUCCESS;
+    }
+
+    /**
+     * Проверка лимитов и отправка алертов в Telegram при достижении порогов.
+     */
+    protected function checkTradingAlerts(\Illuminate\Database\Eloquent\Collection $bots): void
+    {
+        $botIds = $bots->pluck('id');
+        $dailyLossLimit = config('trading.alert_daily_loss_usdt');
+        $losingStreakLimit = config('trading.alert_losing_streak_count');
+        $targetProfit = config('trading.alert_target_profit_usdt');
+
+        if ($dailyLossLimit === null && $losingStreakLimit === null && $targetProfit === null) {
+            return;
+        }
+
+        $todayStart = now()->startOfDay();
+        $dailyPnL = (float) Trade::whereIn('trading_bot_id', $botIds)
+            ->whereNotNull('closed_at')
+            ->whereNotNull('realized_pnl')
+            ->where('closed_at', '>=', $todayStart)
+            ->sum('realized_pnl');
+
+        $closedTrades = Trade::whereIn('trading_bot_id', $botIds)
+            ->whereNotNull('closed_at')
+            ->whereNotNull('realized_pnl')
+            ->orderByDesc('closed_at')
+            ->limit(100)
+            ->get();
+        $losingStreak = 0;
+        foreach ($closedTrades as $t) {
+            if ((float) $t->realized_pnl < 0) {
+                $losingStreak++;
+            } else {
+                break;
+            }
+        }
+
+        $totalPnL = (float) Trade::whereIn('trading_bot_id', $botIds)
+            ->whereNotNull('closed_at')
+            ->whereNotNull('realized_pnl')
+            ->sum('realized_pnl');
+
+        $telegram = new TelegramService();
+        if ($dailyLossLimit !== null && $dailyPnL <= -abs((float) $dailyLossLimit)) {
+            $dailyLossCacheKey = 'telegram_alert_daily_loss_sent_' . now()->format('Y-m-d');
+            if (!Cache::has($dailyLossCacheKey)) {
+                try {
+                    $telegram->notifyAlertDailyLoss($dailyPnL, (float) $dailyLossLimit);
+                    Cache::put($dailyLossCacheKey, true, now()->endOfDay());
+                } catch (\Throwable $e) {
+                    logger()->warning('Telegram alert daily loss failed', ['error' => $e->getMessage()]);
+                }
+            }
+        }
+        if ($losingStreakLimit !== null && $losingStreak >= (int) $losingStreakLimit) {
+            $streakCacheKey = 'telegram_alert_losing_streak_sent_' . now()->format('Y-m-d');
+            if (!Cache::has($streakCacheKey)) {
+                try {
+                    $telegram->notifyAlertLosingStreak($losingStreak, (int) $losingStreakLimit);
+                    Cache::put($streakCacheKey, true, now()->endOfDay());
+                } catch (\Throwable $e) {
+                    logger()->warning('Telegram alert losing streak failed', ['error' => $e->getMessage()]);
+                }
+            }
+        }
+        if ($targetProfit !== null && $totalPnL >= (float) $targetProfit) {
+            $cacheKey = 'telegram_alert_target_profit_sent_' . now()->format('Y-m-d');
+            if (!Cache::has($cacheKey)) {
+                try {
+                    $telegram->notifyAlertTargetProfit($totalPnL, (float) $targetProfit);
+                    Cache::put($cacheKey, true, now()->endOfDay());
+                } catch (\Throwable $e) {
+                    logger()->warning('Telegram alert target profit failed', ['error' => $e->getMessage()]);
+                }
+            }
+        }
     }
 
     /**

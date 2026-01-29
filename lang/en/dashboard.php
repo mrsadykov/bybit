@@ -31,4 +31,10 @@ return [
     'quantity' => 'Quantity',
     'entry_price' => 'Entry Price',
     'bot' => 'Bot',
+    'charts' => 'Charts',
+    'chart_pnl_by_day' => 'PnL by Day',
+    'chart_trades_by_day' => 'Trades by Day',
+    'chart_cumulative_pnl' => 'Cumulative PnL (Equity Curve)',
+    'last_days' => 'Last :days days',
+    'charts_no_data' => 'No closed trades in the last 30 days for charts.',
 ];

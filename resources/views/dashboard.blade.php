@@ -128,6 +128,99 @@
                 </div>
             </div>
 
+            <!-- Графики -->
+            <div id="dashboard-charts" class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mb-6" data-no-data-msg="{{ __('dashboard.charts_no_data') }}">
+                <div class="p-6">
+                    <div class="flex items-center space-x-2 mb-4">
+                        <span class="text-2xl">📈</span>
+                        <h3 class="text-xl font-bold text-gray-900">{{ __('dashboard.charts') }}</h3>
+                        <span class="text-sm text-gray-500">({{ __('dashboard.last_days', ['days' => 30]) }})</span>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2">
+                            <p class="text-sm font-medium text-gray-700 mb-2">{{ __('dashboard.chart_cumulative_pnl') }}</p>
+                            <div class="relative h-64">
+                                <canvas id="chartCumulativePnL" height="200"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-700 mb-2">{{ __('dashboard.chart_pnl_by_day') }}</p>
+                            <div class="relative h-64">
+                                <canvas id="chartPnlByDay" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-6">
+                        <p class="text-sm font-medium text-gray-700 mb-2">{{ __('dashboard.chart_trades_by_day') }}</p>
+                        <div class="relative h-48">
+                            <canvas id="chartTradesByDay" height="150"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+            <script>
+                (function() {
+                    const defaultOptions = { responsive: true, maintainAspectRatio: false };
+                    const dateLabels = @json($chartCumulativePnL['labels'] ?? []);
+                    const cumulativeData = @json($chartCumulativePnL['data'] ?? []);
+                    const pnlByDayData = @json($chartPnlByDay['data'] ?? []);
+                    const tradesByDayData = @json($chartTradesByDay['data'] ?? []);
+
+                    if (dateLabels.length && (cumulativeData.some(v => v !== 0) || pnlByDayData.some(v => v !== 0) || tradesByDayData.some(v => v > 0))) {
+                        if (cumulativeData.length) {
+                            new Chart(document.getElementById('chartCumulativePnL'), {
+                                type: 'line',
+                                data: {
+                                    labels: dateLabels,
+                                    datasets: [{
+                                        label: '{{ __("dashboard.chart_cumulative_pnl") }}',
+                                        data: cumulativeData,
+                                        borderColor: 'rgb(79, 70, 229)',
+                                        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                                        fill: true,
+                                        tension: 0.2
+                                    }]
+                                },
+                                options: { ...defaultOptions, scales: { y: { beginAtZero: true } } }
+                            });
+                        }
+                        if (pnlByDayData.length) {
+                            new Chart(document.getElementById('chartPnlByDay'), {
+                                type: 'bar',
+                                data: {
+                                    labels: dateLabels,
+                                    datasets: [{
+                                        label: 'PnL USDT',
+                                        data: pnlByDayData,
+                                        backgroundColor: pnlByDayData.map(v => v >= 0 ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)')
+                                    }]
+                                },
+                                options: { ...defaultOptions, scales: { y: { beginAtZero: true } } }
+                            });
+                        }
+                        if (tradesByDayData.length) {
+                            new Chart(document.getElementById('chartTradesByDay'), {
+                                type: 'bar',
+                                data: {
+                                    labels: dateLabels,
+                                    datasets: [{
+                                        label: '{{ __("dashboard.trades") }}',
+                                        data: tradesByDayData,
+                                        backgroundColor: 'rgba(99, 102, 241, 0.7)'
+                                    }]
+                                },
+                                options: { ...defaultOptions, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+                            });
+                        }
+                    } else {
+                        var el = document.getElementById('dashboard-charts');
+                        if (el) el.querySelector('.p-6').innerHTML = '<div class="flex items-center space-x-2 mb-4"><span class="text-2xl">📈</span><h3 class="text-xl font-bold text-gray-900">{{ __("dashboard.charts") }}</h3></div><p class="text-gray-500 text-sm py-8 text-center">' + (el.getAttribute('data-no-data-msg') || '') + '</p>';
+                    }
+                })();
+            </script>
+
             <!-- Сохраненная статистика -->
             @if($savedStats)
             <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mb-6">

@@ -31,4 +31,10 @@ return [
     'quantity' => 'Количество',
     'entry_price' => 'Цена входа',
     'bot' => 'Бот',
+    'charts' => 'Графики',
+    'chart_pnl_by_day' => 'PnL по дням',
+    'chart_trades_by_day' => 'Сделок по дням',
+    'chart_cumulative_pnl' => 'Кумулятивный PnL (кривая эквити)',
+    'last_days' => 'За последние :days дн.',
+    'charts_no_data' => 'За последние 30 дней нет закрытых сделок для графиков.',
 ];

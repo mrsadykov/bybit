@@ -299,6 +299,42 @@ class TelegramService
     }
 
     /**
+     * Алерт: дневной убыток превысил лимит
+     */
+    public function notifyAlertDailyLoss(float $dailyLossUsdt, float $limitUsdt): void
+    {
+        $message = "⚠️ <b>АЛЕРТ: ДНЕВНОЙ УБЫТОК (DAILY LOSS ALERT)</b>\n\n";
+        $message .= "Дневной PnL (Daily PnL): <b>" . number_format($dailyLossUsdt, 2) . " USDT</b>\n";
+        $message .= "Лимит (Limit): <b>" . number_format($limitUsdt, 2) . " USDT</b>\n";
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $this->sendMessage($message);
+    }
+
+    /**
+     * Алерт: серия убыточных сделок подряд
+     */
+    public function notifyAlertLosingStreak(int $streakCount, int $limit): void
+    {
+        $message = "⚠️ <b>АЛЕРТ: СЕРИЯ УБЫТКОВ (LOSING STREAK ALERT)</b>\n\n";
+        $message .= "Убыточных сделок подряд (Losing trades in a row): <b>{$streakCount}</b>\n";
+        $message .= "Лимит (Limit): <b>{$limit}</b>\n";
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $this->sendMessage($message);
+    }
+
+    /**
+     * Алерт: достигнута целевая прибыль
+     */
+    public function notifyAlertTargetProfit(float $totalPnLUsdt, float $targetUsdt): void
+    {
+        $message = "🎯 <b>ЦЕЛЕВАЯ ПРИБЫЛЬ ДОСТИГНУТА (TARGET PROFIT REACHED)</b>\n\n";
+        $message .= "Суммарный PnL (Total PnL): <b>+" . number_format($totalPnLUsdt, 2) . " USDT</b>\n";
+        $message .= "Цель (Target): <b>" . number_format($targetUsdt, 2) . " USDT</b>\n";
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $this->sendMessage($message);
+    }
+
+    /**
      * Heartbeat: «сервер работает». Вызывается по расписанию (например, каждые 5 мин).
      * Если сообщения перестают приходить — сервер, скорее всего, упал.
      * 

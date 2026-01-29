@@ -69,6 +69,46 @@
                 </div>
             </div>
 
+            <!-- Расширенная статистика по боту -->
+            @if($stats['closed_positions'] > 0)
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-4">
+                        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">{{ __('dashboard.average_pnl') }}</div>
+                        <div class="text-xl font-bold {{ $stats['avg_pnl'] >= 0 ? 'text-green-600' : 'text-red-600' }}">
+                            {{ number_format($stats['avg_pnl'], 4) }} USDT
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-4">
+                        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">{{ __('dashboard.profit_factor') }}</div>
+                        <div class="text-xl font-bold {{ $stats['profit_factor'] >= 1.5 ? 'text-green-600' : ($stats['profit_factor'] >= 1 ? 'text-yellow-600' : 'text-red-600') }}">
+                            {{ number_format($stats['profit_factor'], 2) }}
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-4">
+                        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">{{ __('dashboard.max_drawdown') }}</div>
+                        <div class="text-xl font-bold text-red-600">{{ number_format($stats['max_drawdown'], 4) }} USDT</div>
+                    </div>
+                </div>
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-4">
+                        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">{{ __('dashboard.best_trade') }}</div>
+                        <div class="text-xl font-bold text-green-600">+{{ number_format($stats['best_trade'], 4) }} USDT</div>
+                    </div>
+                </div>
+                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="p-4">
+                        <div class="text-xs text-gray-500 uppercase tracking-wide mb-1">{{ __('dashboard.worst_trade') }}</div>
+                        <div class="text-xl font-bold text-red-600">{{ number_format($stats['worst_trade'], 4) }} USDT</div>
+                    </div>
+                </div>
+            </div>
+            @endif
+
             <!-- Информация о боте -->
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
                 <div class="p-6">
@@ -128,23 +168,47 @@
                 </div>
             </div>
 
-            <!-- График PnL (пока простой список, потом можно добавить Chart.js) -->
+            <!-- График PnL по дням -->
             @if($dailyPnL->count() > 0)
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg mb-6">
                 <div class="p-6">
                     <h3 class="text-lg font-semibold mb-4">{{ __('bots.daily_pnl') }}</h3>
-                    <div class="space-y-2">
-                        @foreach($dailyPnL as $day)
+                    <div class="relative h-56">
+                        <canvas id="botPnlChart" height="200"></canvas>
+                    </div>
+                    <div class="mt-4 space-y-2 max-h-48 overflow-y-auto">
+                        @foreach($dailyPnL->take(14) as $day)
                             <div class="flex justify-between items-center p-2 {{ $day['pnl'] >= 0 ? 'bg-green-50' : 'bg-red-50' }}">
                                 <span class="text-sm font-medium">{{ $day['date'] }}</span>
                                 <span class="text-sm font-bold {{ $day['pnl'] >= 0 ? 'text-green-600' : 'text-red-600' }}">
-                                    {{ number_format($day['pnl'], 8) }} USDT
+                                    {{ number_format($day['pnl'], 4) }} USDT
                                 </span>
                             </div>
                         @endforeach
                     </div>
                 </div>
             </div>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+            <script>
+                (function() {
+                    var labels = @json($dailyPnL->pluck('date')->values());
+                    var data = @json($dailyPnL->pluck('pnl')->values());
+                    if (labels.length && data.length) {
+                        new Chart(document.getElementById('botPnlChart'), {
+                            type: 'bar',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: 'PnL USDT',
+                                    data: data,
+                                    backgroundColor: data.map(function(v) { return v >= 0 ? 'rgba(34, 197, 94, 0.7)' : 'rgba(239, 68, 68, 0.7)'; })
+                                }]
+                            },
+                            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+                        });
+                    }
+                })();
+            </script>
             @endif
 
             <!-- Последние сделки -->
