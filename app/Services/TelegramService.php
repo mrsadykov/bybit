@@ -361,6 +361,15 @@ class TelegramService
     }
 
     /**
+     * Короткое уведомление: бот пропущен в этом запуске из‑за лимита риска (не чаще 1 раза в час).
+     */
+    public function notifyBotSkippedRiskLimit(string $symbol): void
+    {
+        $message = "⏭️ <b>Бот пропущен (Bot skipped)</b>: {$symbol} — лимит риска (risk limit). Время: " . now()->format('H:i');
+        $this->sendMessage($message);
+    }
+
+    /**
      * Риск: новый BUY не выставлен — достигнут лимит открытых позиций
      */
     public function notifyRiskLimitMaxPositions(string $symbol, int $currentCount, int $limit): void

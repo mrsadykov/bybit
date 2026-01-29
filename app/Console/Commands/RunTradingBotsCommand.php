@@ -54,6 +54,15 @@ class RunTradingBotsCommand extends Command
             // Проверка лимитов риска по боту: при достижении — пропуск бота до следующего дня (daily loss) или до ручного изменения (drawdown)
             if ($this->isBotPausedByRiskLimits($bot, $telegram)) {
                 $this->warn("Бот {$bot->symbol} пропущен: достигнут лимит риска (Bot skipped: risk limit reached)");
+                $skipNotifyKey = 'risk_skip_notify_' . $bot->id . '_' . now()->format('Y-m-d-H');
+                if (!Cache::has($skipNotifyKey)) {
+                    try {
+                        $telegram->notifyBotSkippedRiskLimit($bot->symbol);
+                        Cache::put($skipNotifyKey, true, now()->addHour());
+                    } catch (\Throwable $e) {
+                        logger()->warning('Telegram bot skipped risk notify failed', ['bot_id' => $bot->id, 'error' => $e->getMessage()]);
+                    }
+                }
                 continue;
             }
 

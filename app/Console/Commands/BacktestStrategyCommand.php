@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Trading\Indicators\EmaIndicator;
 use App\Trading\Indicators\RsiIndicator;
+use App\Trading\Strategies\RsiEmaStrategy;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 
@@ -22,6 +23,7 @@ class BacktestStrategyCommand extends Command
                             {--fee=0.001 : Комиссия (0.001 = 0.1%)}
                             {--stop-loss= : Stop-Loss процент (например: 5.0 = продать при падении на 5%)}
                             {--take-profit= : Take-Profit процент (например: 10.0 = продать при росте на 10%)}
+                            {--use-macd-filter : Включить фильтр MACD (BUY при histogram ≥ 0, SELL при ≤ 0)}
                             {--json : Вывести результаты в формате JSON}';
 
     protected $description = 'Бэктестинг стратегии RSI + EMA на исторических данных (Backtest RSI + EMA strategy on historical data)';
@@ -40,6 +42,7 @@ class BacktestStrategyCommand extends Command
         $fee = (float) $this->option('fee');
         $stopLoss = $this->option('stop-loss') ? (float) $this->option('stop-loss') : null;
         $takeProfit = $this->option('take-profit') ? (float) $this->option('take-profit') : null;
+        $useMacdFilter = $this->option('use-macd-filter');
         $jsonMode = $this->option('json');
 
         // В режиме JSON не выводим информационные сообщения
@@ -60,6 +63,9 @@ class BacktestStrategyCommand extends Command
             }
             if ($takeProfit) {
                 $this->line("  Take-Profit: {$takeProfit}%");
+            }
+            if ($useMacdFilter) {
+                $this->line("  Фильтр MACD (MACD filter): включён (on)");
             }
             $this->line('');
         }
@@ -139,13 +145,16 @@ class BacktestStrategyCommand extends Command
             return self::FAILURE;
         }
 
+        $minCandles = max($rsiPeriod, $emaPeriod);
+        if ($useMacdFilter) {
+            $minCandles = max($minCandles, 34); // MACD 26+9-1
+        }
         // Проверяем, что есть данные для бэктестинга
-        if (empty($candleList) || count($candleList) < max($rsiPeriod, $emaPeriod)) {
+        if (empty($candleList) || count($candleList) < $minCandles) {
             if ($jsonMode) {
-                // В режиме JSON возвращаем ошибку
-                $this->line(json_encode(['error' => 'Not enough candle data', 'candles_count' => count($candleList)], JSON_UNESCAPED_UNICODE));
+                $this->line(json_encode(['error' => 'Not enough candle data', 'candles_count' => count($candleList), 'min_required' => $minCandles], JSON_UNESCAPED_UNICODE));
             } else {
-                $this->error("Недостаточно данных для бэктестинга (Not enough data for backtest). Получено свечей: " . count($candleList));
+                $this->error("Недостаточно данных для бэктестинга (Not enough data for backtest). Получено: " . count($candleList) . ", нужно минимум: {$minCandles}");
             }
             return self::FAILURE;
         }
@@ -156,7 +165,7 @@ class BacktestStrategyCommand extends Command
             $this->line('');
         }
 
-        $results = $this->runBacktest($candleList, $rsiPeriod, $emaPeriod, $rsiBuyThreshold, $rsiSellThreshold, $positionSize, $fee, $stopLoss, $takeProfit);
+        $results = $this->runBacktest($candleList, $rsiPeriod, $emaPeriod, $rsiBuyThreshold, $rsiSellThreshold, $positionSize, $fee, $stopLoss, $takeProfit, $useMacdFilter);
 
         // Добавляем параметры в результаты для анализа
         $results['parameters'] = [
@@ -169,6 +178,7 @@ class BacktestStrategyCommand extends Command
             'position_size' => $positionSize,
             'stop_loss' => $stopLoss,
             'take_profit' => $takeProfit,
+            'use_macd_filter' => $useMacdFilter,
         ];
 
         // Выводим результаты
@@ -187,15 +197,15 @@ class BacktestStrategyCommand extends Command
     /**
      * Запуск бэктестинга
      */
-    protected function runBacktest(array $candles, int $rsiPeriod, int $emaPeriod, float $rsiBuyThreshold, float $rsiSellThreshold, float $positionSize, float $fee, ?float $stopLoss = null, ?float $takeProfit = null): array
+    protected function runBacktest(array $candles, int $rsiPeriod, int $emaPeriod, float $rsiBuyThreshold, float $rsiSellThreshold, float $positionSize, float $fee, ?float $stopLoss = null, ?float $takeProfit = null, bool $useMacdFilter = false): array
     {
         $closes = array_column($candles, 'close');
         $timestamps = array_column($candles, 'timestamp');
-        
+
         $balance = 1000.0; // Начальный баланс в USDT
         $position = 0.0; // Количество криптовалюты
         $positionCost = 0.0; // Средняя цена покупки
-        
+
         $trades = [];
         $winningTrades = 0;
         $losingTrades = 0;
@@ -204,8 +214,8 @@ class BacktestStrategyCommand extends Command
         $currentBuyPrice = null;
         $currentBuyTimestamp = null;
 
-        // Начинаем с индекса, достаточного для расчета индикаторов
-        $startIndex = max($rsiPeriod, $emaPeriod);
+        // Начинаем с индекса, достаточного для расчета индикаторов (и MACD при включённом фильтре)
+        $startIndex = max($rsiPeriod, $emaPeriod, $useMacdFilter ? 34 : 0);
 
         for ($i = $startIndex; $i < count($closes); $i++) {
             // Получаем историю цен до текущего момента
@@ -276,8 +286,16 @@ class BacktestStrategyCommand extends Command
                 }
             }
 
-            // Применяем стратегию
-            $signal = $this->getSignal($rsi, $ema, $currentPrice, $rsiBuyThreshold, $rsiSellThreshold);
+            // Применяем стратегию (с фильтром MACD при --use-macd-filter)
+            if ($useMacdFilter) {
+                try {
+                    $signal = RsiEmaStrategy::decide($historicalCloses, $rsiPeriod, $emaPeriod, $rsiBuyThreshold, $rsiSellThreshold, true, 12, 26, 9);
+                } catch (\Throwable $e) {
+                    $signal = 'HOLD';
+                }
+            } else {
+                $signal = $this->getSignal($rsi, $ema, $currentPrice, $rsiBuyThreshold, $rsiSellThreshold);
+            }
 
             // BUY сигнал
             if ($signal === 'BUY' && $position <= 0 && $balance >= $positionSize) {
