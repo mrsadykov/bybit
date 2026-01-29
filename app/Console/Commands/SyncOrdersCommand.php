@@ -153,6 +153,10 @@ class SyncOrdersCommand extends Command
                     if (abs($trade->price - $executedPrice) > 0.01) {
                         $needsUpdate = true;
                     }
+
+                    // Уведомлять в Telegram только при переходе в FILLED (ордер ещё не был FILLED в БД).
+                    // Иначе bots:run уже отправил notifyFilled → sync не дублирует при обновлении цены/объёма.
+                    $wasNotFilled = $trade->status !== 'FILLED';
                     
                     if ($needsUpdate || !$trade->filled_at) {
                         // 1. обновляем текущий трейд
@@ -169,8 +173,8 @@ class SyncOrdersCommand extends Command
                         $this->line("     Количество (Quantity): {$executedQty} | Цена (Price): {$executedPrice} | Комиссия (Fee): {$fee} {$feeCurrency}");
                         $synced++;
 
-                        // Уведомление в Telegram о заполнении ордера
-                        if ($isFilled && $needsUpdate) {
+                        // Уведомление в Telegram только если FILLED обнаружили в sync (не обновление уже FILLED от bots:run)
+                        if ($isFilled && $needsUpdate && $wasNotFilled) {
                             $telegram = new TelegramService();
                             $telegram->notifyFilled($trade->side, $trade->symbol, $executedQty, $executedPrice, $fee);
                         }
