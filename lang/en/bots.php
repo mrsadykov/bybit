@@ -96,4 +96,12 @@ return [
     'min_position_size' => 'Minimum size: 1 USDT',
     'stop_loss_help' => 'Sell when price drops by specified percentage',
     'take_profit_help' => 'Sell when price rises by specified percentage',
+
+    // Risk limits (priority 2)
+    'max_daily_loss_usdt' => 'Max daily loss (USDT)',
+    'max_daily_loss_placeholder' => 'Empty = no limit',
+    'max_daily_loss_help' => 'When daily loss reaches this, trading for this bot is paused until the next day.',
+    'max_drawdown_percent' => 'Max drawdown (%)',
+    'max_drawdown_placeholder' => 'Empty = no limit',
+    'max_drawdown_help' => 'When drawdown from cumulative PnL peak exceeds this, trading for this bot is paused (clear manually or change limit).',
 ];

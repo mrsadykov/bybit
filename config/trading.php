@@ -14,6 +14,9 @@ return [
     'alert_losing_streak_count' => env('TRADING_ALERT_LOSING_STREAK', null), // например 3 — алерт при 3+ убыточных сделках подряд
     'alert_target_profit_usdt' => env('TRADING_ALERT_TARGET_PROFIT_USDT', null), // например 50 — алерт при достижении суммарной прибыли >= 50 USDT
 
+    // Лимит открытых позиций (глобально по всем ботам пользователя): при достижении новые BUY не выставляются
+    'max_open_positions_total' => env('TRADING_MAX_OPEN_POSITIONS_TOTAL', null), // например 5 — не более 5 открытых позиций суммарно
+
     'bybit' => [
         'env' => env('BYBIT_ENV', 'testnet'), // testnet | production
     ],

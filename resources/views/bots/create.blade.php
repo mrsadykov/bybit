@@ -178,6 +178,36 @@
                             @enderror
                         </div>
 
+                        <!-- Max Daily Loss (USDT) -->
+                        <div class="mb-4">
+                            <label for="max_daily_loss_usdt" class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ __('bots.max_daily_loss_usdt') }}
+                            </label>
+                            <input type="number" name="max_daily_loss_usdt" id="max_daily_loss_usdt"
+                                value="{{ old('max_daily_loss_usdt') }}" step="0.01" min="0"
+                                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                placeholder="{{ __('bots.max_daily_loss_placeholder') }}">
+                            <p class="mt-1 text-sm text-gray-500">{{ __('bots.max_daily_loss_help') }}</p>
+                            @error('max_daily_loss_usdt')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <!-- Max Drawdown (%) -->
+                        <div class="mb-4">
+                            <label for="max_drawdown_percent" class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ __('bots.max_drawdown_percent') }}
+                            </label>
+                            <input type="number" name="max_drawdown_percent" id="max_drawdown_percent"
+                                value="{{ old('max_drawdown_percent') }}" step="0.01" min="0" max="100"
+                                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                placeholder="{{ __('bots.max_drawdown_placeholder') }}">
+                            <p class="mt-1 text-sm text-gray-500">{{ __('bots.max_drawdown_help') }}</p>
+                            @error('max_drawdown_percent')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
                         <!-- Dry Run -->
                         <div class="mb-4">
                             <label class="flex items-center">

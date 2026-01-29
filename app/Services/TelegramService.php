@@ -335,6 +335,44 @@ class TelegramService
     }
 
     /**
+     * Риск: торговля по боту приостановлена — достигнут лимит дневного убытка
+     */
+    public function notifyRiskLimitDailyLoss(string $symbol, float $dailyLossUsdt, float $limitUsdt): void
+    {
+        $message = "🛑 <b>РИСК: ЛИМИТ ДНЕВНОГО УБЫТКА (DAILY LOSS LIMIT)</b>\n\n";
+        $message .= "Бот (Bot): <b>{$symbol}</b>\n";
+        $message .= "Дневной PnL (Daily PnL): <b>" . number_format($dailyLossUsdt, 2) . " USDT</b>\n";
+        $message .= "Лимит (Limit): <b>" . number_format($limitUsdt, 2) . " USDT</b>\n";
+        $message .= "Торговля по боту приостановлена до завтра. Время: " . now()->format('Y-m-d H:i:s');
+        $this->sendMessage($message);
+    }
+
+    /**
+     * Риск: торговля по боту приостановлена — превышена максимальная просадка
+     */
+    public function notifyRiskLimitDrawdown(string $symbol, float $drawdownPercent, float $limitPercent): void
+    {
+        $message = "🛑 <b>РИСК: ЛИМИТ ПРОСАДКИ (DRAWDOWN LIMIT)</b>\n\n";
+        $message .= "Бот (Bot): <b>{$symbol}</b>\n";
+        $message .= "Просадка (Drawdown): <b>" . number_format($drawdownPercent, 2) . "%</b>\n";
+        $message .= "Лимит (Limit): <b>" . number_format($limitPercent, 2) . "%</b>\n";
+        $message .= "Торговля по боту приостановлена. Время: " . now()->format('Y-m-d H:i:s');
+        $this->sendMessage($message);
+    }
+
+    /**
+     * Риск: новый BUY не выставлен — достигнут лимит открытых позиций
+     */
+    public function notifyRiskLimitMaxPositions(string $symbol, int $currentCount, int $limit): void
+    {
+        $message = "🛑 <b>РИСК: ЛИМИТ ОТКРЫТЫХ ПОЗИЦИЙ (MAX OPEN POSITIONS)</b>\n\n";
+        $message .= "Бот (Bot): <b>{$symbol}</b> — BUY пропущен\n";
+        $message .= "Открытых позиций (Open positions): <b>{$currentCount}</b> / {$limit}\n";
+        $message .= "Время: " . now()->format('Y-m-d H:i:s');
+        $this->sendMessage($message);
+    }
+
+    /**
      * Heartbeat: «сервер работает». Вызывается по расписанию (например, каждые 5 мин).
      * Если сообщения перестают приходить — сервер, скорее всего, упал.
      * 

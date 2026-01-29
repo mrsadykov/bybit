@@ -51,6 +51,12 @@ class RunTradingBotsCommand extends Command
             $positionManager = new PositionManager($bot);
             $telegram = new TelegramService();
 
+            // Проверка лимитов риска по боту: при достижении — пропуск бота до следующего дня (daily loss) или до ручного изменения (drawdown)
+            if ($this->isBotPausedByRiskLimits($bot, $telegram)) {
+                $this->warn("Бот {$bot->symbol} пропущен: достигнут лимит риска (Bot skipped: risk limit reached)");
+                continue;
+            }
+
             /*
             |--------------------------------------------------------------------------
             | PRICE
@@ -290,6 +296,29 @@ class RunTradingBotsCommand extends Command
                     $this->warn('BUY пропущен: позиция уже открыта (BUY skipped: position already open)');
                     $telegram->notifySkip('BUY', 'Позиция уже открыта (Position already open)');
                     continue;
+                }
+
+                // Лимит открытых позиций по всем ботам пользователя
+                $maxOpenTotal = config('trading.max_open_positions_total');
+                if ($maxOpenTotal !== null && (int) $maxOpenTotal > 0) {
+                    $openCount = Trade::whereIn('trading_bot_id', TradingBot::where('user_id', $bot->user_id)->pluck('id'))
+                        ->where('side', 'BUY')
+                        ->where('status', 'FILLED')
+                        ->whereNull('closed_at')
+                        ->count();
+                    if ($openCount >= (int) $maxOpenTotal) {
+                        $this->warn("BUY пропущен: достигнут лимит открытых позиций ({$openCount}/{$maxOpenTotal}) (BUY skipped: max open positions)");
+                        $cacheKey = 'risk_max_positions_notified_' . now()->format('Y-m-d-H-i');
+                        if (!Cache::has($cacheKey)) {
+                            try {
+                                $telegram->notifyRiskLimitMaxPositions($bot->symbol, $openCount, (int) $maxOpenTotal);
+                                Cache::put($cacheKey, true, now()->addMinutes(15));
+                            } catch (\Throwable $e) {
+                                logger()->warning('Telegram risk max positions failed', ['error' => $e->getMessage()]);
+                            }
+                        }
+                        continue;
+                    }
                 }
 
                 $usdtAmount = (float) $bot->position_size;
@@ -860,6 +889,72 @@ class RunTradingBotsCommand extends Command
                 }
             }
         }
+    }
+
+    /**
+     * Проверка лимитов риска по боту: дневной убыток и просадка.
+     * При достижении лимита отправляется уведомление и возвращается true (бот пропускается).
+     */
+    protected function isBotPausedByRiskLimits(TradingBot $bot, TelegramService $telegram): bool
+    {
+        $todayStart = now()->startOfDay();
+
+        // Лимит дневного убытка (по этому боту)
+        $maxDailyLoss = $bot->max_daily_loss_usdt !== null ? (float) $bot->max_daily_loss_usdt : null;
+        if ($maxDailyLoss !== null && $maxDailyLoss > 0) {
+            $dailyPnL = (float) Trade::where('trading_bot_id', $bot->id)
+                ->whereNotNull('closed_at')
+                ->whereNotNull('realized_pnl')
+                ->where('closed_at', '>=', $todayStart)
+                ->sum('realized_pnl');
+            if ($dailyPnL <= -$maxDailyLoss) {
+                $cacheKey = 'risk_daily_loss_sent_' . $bot->id . '_' . now()->format('Y-m-d');
+                if (!Cache::has($cacheKey)) {
+                    try {
+                        $telegram->notifyRiskLimitDailyLoss($bot->symbol, $dailyPnL, $maxDailyLoss);
+                        Cache::put($cacheKey, true, now()->endOfDay());
+                    } catch (\Throwable $e) {
+                        logger()->warning('Telegram risk daily loss failed', ['bot_id' => $bot->id, 'error' => $e->getMessage()]);
+                    }
+                }
+                return true;
+            }
+        }
+
+        // Лимит просадки (по этому боту): от пика кумулятивного PnL
+        $maxDrawdownPct = $bot->max_drawdown_percent !== null ? (float) $bot->max_drawdown_percent : null;
+        if ($maxDrawdownPct !== null && $maxDrawdownPct > 0) {
+            $closed = Trade::where('trading_bot_id', $bot->id)
+                ->whereNotNull('closed_at')
+                ->whereNotNull('realized_pnl')
+                ->orderBy('closed_at')
+                ->get();
+            $cum = 0;
+            $peak = 0;
+            foreach ($closed as $t) {
+                $cum += (float) $t->realized_pnl;
+                if ($cum > $peak) {
+                    $peak = $cum;
+                }
+            }
+            if ($peak > 0.01) {
+                $drawdownPct = (($peak - $cum) / $peak) * 100;
+                if ($drawdownPct >= $maxDrawdownPct) {
+                    $cacheKey = 'risk_drawdown_sent_' . $bot->id . '_' . now()->format('Y-m-d');
+                    if (!Cache::has($cacheKey)) {
+                        try {
+                            $telegram->notifyRiskLimitDrawdown($bot->symbol, $drawdownPct, $maxDrawdownPct);
+                            Cache::put($cacheKey, true, now()->endOfDay());
+                        } catch (\Throwable $e) {
+                            logger()->warning('Telegram risk drawdown failed', ['bot_id' => $bot->id, 'error' => $e->getMessage()]);
+                        }
+                    }
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -160,6 +160,18 @@
                                 <div class="font-medium text-green-600">+{{ number_format($bot->take_profit_percent, 2) }}%</div>
                             </div>
                         @endif
+                        @if($bot->max_daily_loss_usdt !== null)
+                            <div>
+                                <div class="text-sm text-gray-500">{{ __('bots.max_daily_loss_usdt') }}</div>
+                                <div class="font-medium text-orange-600">{{ number_format($bot->max_daily_loss_usdt, 2) }} USDT</div>
+                            </div>
+                        @endif
+                        @if($bot->max_drawdown_percent !== null)
+                            <div>
+                                <div class="text-sm text-gray-500">{{ __('bots.max_drawdown_percent') }}</div>
+                                <div class="font-medium text-orange-600">{{ number_format($bot->max_drawdown_percent, 2) }}%</div>
+                            </div>
+                        @endif
                         <div>
                             <div class="text-sm text-gray-500">{{ __('bots.exchange') }}</div>
                             <div class="font-medium">{{ strtoupper($bot->exchangeAccount->exchange ?? 'N/A') }}</div>
