@@ -17,7 +17,8 @@ return [
     'position_size_usdt' => 'Position Size (USDT)',
     'position_size_help' => 'For 1 BTC contract at 2x leverage, use at least ~450–500 USDT.',
     'leverage' => 'Leverage',
-    'leverage_help' => 'Recommended 2–3 for minimal risk.',
+    'leverage_help' => 'Recommended 2–3 for minimal risk. Max is set in config (default 125).',
+    'leverage_high_risk' => 'Leverage 50x and above greatly increases liquidation risk if price moves against the position.',
     'exchange' => 'Exchange',
     'rsi_period' => 'RSI Period',
     'ema_period' => 'EMA Period',
@@ -40,6 +41,7 @@ return [
 
     'exchange_account' => 'Exchange Account (OKX only)',
     'trading_pair' => 'Trading Pair',
+    'pairs_help' => 'For less margin per 1 contract use SOL, BNB or ETH; BTC requires more USDT.',
 
     'bot_created' => 'Futures bot created.',
     'bot_updated' => 'Futures bot updated.',

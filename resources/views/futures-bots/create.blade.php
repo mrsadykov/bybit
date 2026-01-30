@@ -34,9 +34,13 @@
                             <label for="symbol" class="block text-sm font-medium text-gray-700 mb-2">
                                 {{ __('futures.trading_pair') }} <span class="text-red-500">*</span>
                             </label>
-                            <input type="text" name="symbol" id="symbol" value="{{ old('symbol', 'BTCUSDT') }}" required
-                                placeholder="BTCUSDT" pattern="^[A-Z]{2,10}USDT$"
+                            <select name="symbol" id="symbol" required
                                 class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                @foreach(config('futures.symbols_for_form', ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT']) as $sym)
+                                    <option value="{{ $sym }}" {{ old('symbol', 'SOLUSDT') == $sym ? 'selected' : '' }}>{{ $sym }}</option>
+                                @endforeach
+                            </select>
+                            <p class="mt-1 text-sm text-gray-500">{{ __('futures.pairs_help') }}</p>
                             @error('symbol')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
@@ -86,9 +90,10 @@
                                 {{ __('futures.leverage') }} <span class="text-red-500">*</span>
                             </label>
                             <input type="number" name="leverage" id="leverage"
-                                value="{{ old('leverage', '2') }}" required min="1" max="10"
+                                value="{{ old('leverage', '2') }}" required min="1" max="{{ (int) config('futures.max_leverage', 125) }}"
                                 class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <p class="mt-1 text-sm text-gray-500">{{ __('futures.leverage_help') }}</p>
+                            <p class="mt-1 text-sm text-amber-600">{{ __('futures.leverage_high_risk') }}</p>
                             @error('leverage')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror

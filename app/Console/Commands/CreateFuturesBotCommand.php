@@ -51,7 +51,7 @@ class CreateFuturesBotCommand extends Command
             'rsi_buy_threshold' => null,
             'rsi_sell_threshold' => null,
             'position_size_usdt' => $positionSizeUsdt,
-            'leverage' => max(1, min(10, $leverage)),
+            'leverage' => max(1, min((int) config('futures.max_leverage', 125), $leverage)),
             'stop_loss_percent' => null,
             'take_profit_percent' => null,
             'is_active' => $active,
