@@ -22,9 +22,9 @@ class OKXService
         $this->passphrase = config('services.okx.passphrase', '');
     }
 
-    /* ================= PUBLIC ================= */
+    /* ================= PUBLIC (protected for OKXFuturesService) ================= */
 
-    private function publicRequest(string $endpoint, array $query = []): array
+    protected function publicRequest(string $endpoint, array $query = []): array
     {
         $url = $this->baseUrl . '/api/v5' . $endpoint;
         if (!empty($query)) {
@@ -47,9 +47,9 @@ class OKXService
         return $json;
     }
 
-    /* ================= PRIVATE ================= */
+    /* ================= PRIVATE (protected for use by OKXFuturesService) ================= */
 
-    private function privateRequest(string $method, string $endpoint, array $body = []): array
+    protected function privateRequest(string $method, string $endpoint, array $body = []): array
     {
         $requestPath = '/api/v5' . $endpoint;
 
@@ -127,12 +127,12 @@ class OKXService
         return $json;
     }
 
-    private function privateGet(string $endpoint, array $query = []): array
+    protected function privateGet(string $endpoint, array $query = []): array
     {
         return $this->privateRequest('GET', $endpoint, $query);
     }
 
-    private function privatePost(string $endpoint, array $body = []): array
+    protected function privatePost(string $endpoint, array $body = []): array
     {
         return $this->privateRequest('POST', $endpoint, $body);
     }
@@ -346,7 +346,7 @@ class OKXService
     /**
      * Конвертирует BTCUSDT в BTC-USDT (формат OKX)
      */
-    private function formatSymbol(string $symbol): string
+    protected function formatSymbol(string $symbol): string
     {
         // Если уже есть дефис, возвращаем как есть
         if (strpos($symbol, '-') !== false) {
@@ -366,7 +366,7 @@ class OKXService
      * Конвертирует интервал из формата Bybit/универсального в формат OKX
      * Поддерживает форматы: "1h", "5m", "15m", "60" и т.д.
      */
-    private function formatInterval(string $interval): string
+    protected function formatInterval(string $interval): string
     {
         // Нормализуем входной формат (убираем пробелы)
         $interval = trim($interval);

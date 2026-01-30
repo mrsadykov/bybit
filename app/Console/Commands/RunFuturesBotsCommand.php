@@ -1,0 +1,196 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Models\FuturesBot;
+use App\Models\FuturesTrade;
+use App\Services\Exchanges\OKX\OKXFuturesService;
+use App\Services\TelegramService;
+use App\Trading\Indicators\EmaIndicator;
+use App\Trading\Indicators\RsiIndicator;
+use App\Trading\Strategies\RsiEmaStrategy;
+use Illuminate\Console\Command;
+
+/**
+ * Запуск фьючерсных ботов (только OKX, perpetual swap).
+ * Отдельная команда от спот-ботов: php artisan futures:run
+ */
+class RunFuturesBotsCommand extends Command
+{
+    protected $signature = 'futures:run';
+    protected $description = 'Run futures bots (OKX perpetual swap, low leverage)';
+
+    public function handle(): int
+    {
+        if (! config('futures.enabled', true)) {
+            $this->warn('Фьючерсные боты отключены (Futures bots disabled)');
+            return self::SUCCESS;
+        }
+
+        $bots = FuturesBot::with('exchangeAccount')
+            ->where('is_active', true)
+            ->get()
+            ->filter(fn ($bot) => $bot->exchangeAccount && $bot->exchangeAccount->exchange === 'okx');
+
+        if ($bots->isEmpty()) {
+            $this->warn('Активных фьючерсных ботов не найдено (No active futures bots found)');
+            return self::SUCCESS;
+        }
+
+        $telegram = new TelegramService();
+        $telegram->notifyFuturesRunStart($bots->count());
+
+        foreach ($bots as $bot) {
+            $this->line(str_repeat('-', 40));
+            $this->info("Фьючерсный бот #{$bot->id}: {$bot->symbol}");
+            $this->line("Плечо (Leverage): {$bot->leverage}x, Размер (Position USDT): {$bot->position_size_usdt}");
+
+            if (! $bot->exchangeAccount) {
+                $this->error('Аккаунт биржи не привязан');
+                continue;
+            }
+
+            if ($bot->exchangeAccount->exchange !== 'okx') {
+                $this->warn("Бот {$bot->symbol}: только OKX поддерживается, пропуск");
+                continue;
+            }
+
+            try {
+                $service = new OKXFuturesService($bot->exchangeAccount);
+            } catch (\Throwable $e) {
+                $this->error('Ошибка создания сервиса OKX: ' . $e->getMessage());
+                continue;
+            }
+
+            try {
+                $price = $service->getPrice($bot->symbol);
+            } catch (\Throwable $e) {
+                $this->error('Ошибка получения цены: ' . $e->getMessage());
+                continue;
+            }
+
+            $this->line("Цена (Price): {$price}");
+
+            try {
+                $candles = $service->getCandles($bot->symbol, $bot->timeframe, 100);
+            } catch (\Throwable $e) {
+                $this->error('Ошибка получения свечей: ' . $e->getMessage());
+                continue;
+            }
+
+            $candleList = $candles['data'] ?? [];
+            if (empty($candleList) || count($candleList) < 20) {
+                $this->warn('Недостаточно данных свечей');
+                continue;
+            }
+
+            $closes = array_map(fn ($c) => (float) $c[4], array_reverse($candleList));
+
+            $rsiPeriod = $bot->rsi_period ?? 17;
+            $emaPeriod = $bot->ema_period ?? 10;
+            $rsiBuy = $bot->rsi_buy_threshold !== null ? (float) $bot->rsi_buy_threshold : 40.0;
+            $rsiSell = $bot->rsi_sell_threshold !== null ? (float) $bot->rsi_sell_threshold : 60.0;
+            $emaTolerance = (float) (config('trading.ema_tolerance_percent', 1));
+            $emaToleranceDeep = config('trading.ema_tolerance_deep_percent') !== null ? (float) config('trading.ema_tolerance_deep_percent') : null;
+            $rsiDeepOversold = config('trading.rsi_deep_oversold') !== null ? (float) config('trading.rsi_deep_oversold') : null;
+
+            $signal = RsiEmaStrategy::decide($closes, $rsiPeriod, $emaPeriod, $rsiBuy, $rsiSell, false, 12, 26, 9, $emaTolerance, $emaToleranceDeep, $rsiDeepOversold);
+
+            $lastRsi = is_array($rsi = RsiIndicator::calculate($closes, $rsiPeriod)) ? end($rsi) : $rsi;
+            $lastEma = is_array($ema = EmaIndicator::calculate($closes, $emaPeriod)) ? end($ema) : $ema;
+            $this->line("RSI: " . round($lastRsi, 2) . ", EMA: " . round($lastEma, 2) . ", Сигнал (Signal): {$signal}");
+
+            $hasPosition = $service->hasLongPosition($bot->symbol);
+
+            if ($signal === 'BUY') {
+                if ($hasPosition) {
+                    $this->line("Позиция уже открыта (Position already open), пропуск BUY");
+                    continue;
+                }
+
+                $balance = $service->getBalance('USDT');
+                $marginRequired = (float) $bot->position_size_usdt;
+                if ($balance < $marginRequired && ! $bot->dry_run) {
+                    $this->warn("Недостаточно маржи (Insufficient margin). Доступно: {$balance}, нужно: {$marginRequired}");
+                    continue;
+                }
+
+                $ctVal = (float) (config("futures.contract_sizes.{$bot->symbol}", '0.01'));
+                $contracts = $ctVal > 0 ? floor($marginRequired / ($price * $ctVal)) : 0;
+                if ($contracts < 1) {
+                    $contracts = 1;
+                }
+
+                if ($bot->dry_run) {
+                    $this->info("[DRY RUN] BUY {$contracts} контрактов по {$price}");
+                    continue;
+                }
+
+                try {
+                    $service->setLeverageForSymbol($bot->symbol, (int) $bot->leverage, 'cross');
+                } catch (\Throwable $e) {
+                    $this->warn('setLeverage: ' . $e->getMessage());
+                }
+
+                try {
+                    $res = $service->placeFuturesMarketOrder($bot->symbol, 'buy', (string) $contracts, false);
+                    $orderId = $res['data'][0]['ordId'] ?? null;
+                    if ($orderId) {
+                        FuturesTrade::create([
+                            'futures_bot_id' => $bot->id,
+                            'side' => 'BUY',
+                            'symbol' => $bot->symbol,
+                            'price' => $price,
+                            'quantity' => $contracts,
+                            'status' => 'PENDING',
+                            'order_id' => $orderId,
+                            'exchange_response' => $res,
+                        ]);
+                        $bot->update(['last_trade_at' => now()]);
+                        $telegram->notifyFuturesTrade($bot->symbol, 'BUY', $price, $contracts);
+                    }
+                } catch (\Throwable $e) {
+                    $this->error('Ошибка размещения ордера BUY: ' . $e->getMessage());
+                }
+                continue;
+            }
+
+            if ($signal === 'SELL' && $hasPosition) {
+                $posSize = $service->getLongPositionSize($bot->symbol);
+                if ($posSize <= 0) {
+                    continue;
+                }
+
+                if ($bot->dry_run) {
+                    $this->info("[DRY RUN] SELL {$posSize} контрактов по {$price}");
+                    continue;
+                }
+
+                try {
+                    $sz = rtrim(rtrim(sprintf('%.8f', $posSize), '0'), '.');
+                    $res = $service->placeFuturesMarketOrder($bot->symbol, 'sell', $sz, true);
+                    $orderId = $res['data'][0]['ordId'] ?? null;
+                    if ($orderId) {
+                        FuturesTrade::create([
+                            'futures_bot_id' => $bot->id,
+                            'side' => 'SELL',
+                            'symbol' => $bot->symbol,
+                            'price' => $price,
+                            'quantity' => $posSize,
+                            'status' => 'PENDING',
+                            'order_id' => $orderId,
+                            'exchange_response' => $res,
+                        ]);
+                        $bot->update(['last_trade_at' => now()]);
+                        $telegram->notifyFuturesTrade($bot->symbol, 'SELL', $price, $posSize);
+                    }
+                } catch (\Throwable $e) {
+                    $this->error('Ошибка размещения ордера SELL: ' . $e->getMessage());
+                }
+            }
+        }
+
+        $this->info('Фьючерсные боты завершены (Futures run finished).');
+        return self::SUCCESS;
+    }
+}

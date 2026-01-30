@@ -193,6 +193,36 @@ class TelegramService
     }
 
     /**
+     * Запуск фьючерсных ботов (Futures bots run started)
+     */
+    public function notifyFuturesRunStart(int $botCount): void
+    {
+        $message = "📈 <b>ЗАПУСК ФЬЮЧЕРСНЫХ БОТОВ (FUTURES BOTS RUN STARTED)</b>\n\n";
+        $message .= "Активных ботов (Active bots): <b>{$botCount}</b>\n";
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+
+        $this->sendMessage($message);
+    }
+
+    /**
+     * Сделка по фьючерсам (Futures trade)
+     */
+    public function notifyFuturesTrade(string $symbol, string $side, float $price, float $quantity, ?float $realizedPnl = null): void
+    {
+        $message = "📈 <b>ФЬЮЧЕРС (FUTURES)</b>\n\n";
+        $message .= "Символ (Symbol): <b>{$symbol}</b>\n";
+        $message .= "Действие (Action): <b>{$side}</b>\n";
+        $message .= "Цена (Price): <b>\${$price}</b>\n";
+        $message .= "Количество контрактов (Contracts): <b>{$quantity}</b>\n";
+        if ($realizedPnl !== null) {
+            $message .= "Реализованный PnL (Realized PnL): <b>" . round($realizedPnl, 2) . " USDT</b>\n";
+        }
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+
+        $this->sendMessage($message);
+    }
+
+    /**
      * Отправить уведомление о HOLD сигнале (No action taken)
      */
     public function notifyHold(string $symbol, float $price, string $signal, float $rsi = null, float $ema = null): void
