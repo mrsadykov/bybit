@@ -24,6 +24,9 @@ class BacktestStrategyCommand extends Command
                             {--stop-loss= : Stop-Loss процент (например: 5.0 = продать при падении на 5%)}
                             {--take-profit= : Take-Profit процент (например: 10.0 = продать при росте на 10%)}
                             {--use-macd-filter : Включить фильтр MACD (BUY при histogram ≥ 0, SELL при ≤ 0)}
+                            {--ema-tolerance=1 : Допуск цены к EMA в % для BUY/SELL (1 = 1%, 2 = больше входов)}
+                            {--ema-tolerance-deep= : При RSI < rsi-deep-oversold допуск для BUY в % (например 3)}
+                            {--rsi-deep-oversold= : Порог RSI для глубокой перепроданности (например 25). Вместе с ema-tolerance-deep}
                             {--json : Вывести результаты в формате JSON}';
 
     protected $description = 'Бэктестинг стратегии RSI + EMA на исторических данных (Backtest RSI + EMA strategy on historical data)';
@@ -43,6 +46,11 @@ class BacktestStrategyCommand extends Command
         $stopLoss = $this->option('stop-loss') ? (float) $this->option('stop-loss') : null;
         $takeProfit = $this->option('take-profit') ? (float) $this->option('take-profit') : null;
         $useMacdFilter = $this->option('use-macd-filter');
+        $emaTolerancePercent = (float) $this->option('ema-tolerance');
+        $emaToleranceDeepPercent = $this->option('ema-tolerance-deep') !== null && $this->option('ema-tolerance-deep') !== ''
+            ? (float) $this->option('ema-tolerance-deep') : null;
+        $rsiDeepOversold = $this->option('rsi-deep-oversold') !== null && $this->option('rsi-deep-oversold') !== ''
+            ? (float) $this->option('rsi-deep-oversold') : null;
         $jsonMode = $this->option('json');
 
         // В режиме JSON не выводим информационные сообщения
@@ -66,6 +74,10 @@ class BacktestStrategyCommand extends Command
             }
             if ($useMacdFilter) {
                 $this->line("  Фильтр MACD (MACD filter): включён (on)");
+            }
+            $this->line("  Допуск EMA (EMA tolerance): {$emaTolerancePercent}%");
+            if ($emaToleranceDeepPercent !== null && $rsiDeepOversold !== null) {
+                $this->line("  Глубокая перепроданность (Deep oversold): RSI < {$rsiDeepOversold} → допуск {$emaToleranceDeepPercent}%");
             }
             $this->line('');
         }
@@ -165,7 +177,7 @@ class BacktestStrategyCommand extends Command
             $this->line('');
         }
 
-        $results = $this->runBacktest($candleList, $rsiPeriod, $emaPeriod, $rsiBuyThreshold, $rsiSellThreshold, $positionSize, $fee, $stopLoss, $takeProfit, $useMacdFilter);
+        $results = $this->runBacktest($candleList, $rsiPeriod, $emaPeriod, $rsiBuyThreshold, $rsiSellThreshold, $positionSize, $fee, $stopLoss, $takeProfit, $useMacdFilter, $emaTolerancePercent, $emaToleranceDeepPercent, $rsiDeepOversold);
 
         // Добавляем параметры в результаты для анализа
         $results['parameters'] = [
@@ -179,6 +191,9 @@ class BacktestStrategyCommand extends Command
             'stop_loss' => $stopLoss,
             'take_profit' => $takeProfit,
             'use_macd_filter' => $useMacdFilter,
+            'ema_tolerance_percent' => $emaTolerancePercent,
+            'ema_tolerance_deep_percent' => $emaToleranceDeepPercent,
+            'rsi_deep_oversold' => $rsiDeepOversold,
         ];
 
         // Выводим результаты
@@ -197,7 +212,7 @@ class BacktestStrategyCommand extends Command
     /**
      * Запуск бэктестинга
      */
-    protected function runBacktest(array $candles, int $rsiPeriod, int $emaPeriod, float $rsiBuyThreshold, float $rsiSellThreshold, float $positionSize, float $fee, ?float $stopLoss = null, ?float $takeProfit = null, bool $useMacdFilter = false): array
+    protected function runBacktest(array $candles, int $rsiPeriod, int $emaPeriod, float $rsiBuyThreshold, float $rsiSellThreshold, float $positionSize, float $fee, ?float $stopLoss = null, ?float $takeProfit = null, bool $useMacdFilter = false, float $emaTolerancePercent = 1.0, ?float $emaToleranceDeepPercent = null, ?float $rsiDeepOversold = null): array
     {
         $closes = array_column($candles, 'close');
         $timestamps = array_column($candles, 'timestamp');
@@ -289,12 +304,12 @@ class BacktestStrategyCommand extends Command
             // Применяем стратегию (с фильтром MACD при --use-macd-filter)
             if ($useMacdFilter) {
                 try {
-                    $signal = RsiEmaStrategy::decide($historicalCloses, $rsiPeriod, $emaPeriod, $rsiBuyThreshold, $rsiSellThreshold, true, 12, 26, 9);
+                    $signal = RsiEmaStrategy::decide($historicalCloses, $rsiPeriod, $emaPeriod, $rsiBuyThreshold, $rsiSellThreshold, true, 12, 26, 9, $emaTolerancePercent, $emaToleranceDeepPercent, $rsiDeepOversold);
                 } catch (\Throwable $e) {
                     $signal = 'HOLD';
                 }
             } else {
-                $signal = $this->getSignal($rsi, $ema, $currentPrice, $rsiBuyThreshold, $rsiSellThreshold);
+                $signal = $this->getSignal($rsi, $ema, $currentPrice, $rsiBuyThreshold, $rsiSellThreshold, $emaTolerancePercent, $emaToleranceDeepPercent, $rsiDeepOversold);
             }
 
             // BUY сигнал
@@ -383,19 +398,21 @@ class BacktestStrategyCommand extends Command
     }
 
     /**
-     * Получить сигнал стратегии
+     * Получить сигнал стратегии (без MACD)
      */
-    protected function getSignal(float $rsi, float $ema, float $currentPrice, float $rsiBuyThreshold = 30, float $rsiSellThreshold = 70): string
+    protected function getSignal(float $rsi, float $ema, float $currentPrice, float $rsiBuyThreshold = 30, float $rsiSellThreshold = 70, float $emaTolerancePercent = 1.0, ?float $emaToleranceDeepPercent = null, ?float $rsiDeepOversold = null): string
     {
-        // Менее строгое условие EMA: цена должна быть близко к EMA (в пределах 1%)
-        // Это даст больше сигналов, чем строгое условие, но все еще учитывает тренд
-        $emaTolerance = 0.01; // 1% допуск
-        
-        if ($rsi < $rsiBuyThreshold && $currentPrice >= $ema * (1 - $emaTolerance)) {
+        $buyTolerance = $emaTolerancePercent / 100.0;
+        if ($rsiDeepOversold !== null && $emaToleranceDeepPercent !== null && $rsi < $rsiDeepOversold) {
+            $buyTolerance = $emaToleranceDeepPercent / 100.0;
+        }
+        $sellTolerance = $emaTolerancePercent / 100.0;
+
+        if ($rsi < $rsiBuyThreshold && $currentPrice >= $ema * (1 - $buyTolerance)) {
             return 'BUY';
         }
 
-        if ($rsi > $rsiSellThreshold && $currentPrice <= $ema * (1 + $emaTolerance)) {
+        if ($rsi > $rsiSellThreshold && $currentPrice <= $ema * (1 + $sellTolerance)) {
             return 'SELL';
         }
 

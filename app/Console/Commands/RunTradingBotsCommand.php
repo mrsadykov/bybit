@@ -152,7 +152,10 @@ class RunTradingBotsCommand extends Command
             $rsiBuy = $bot->rsi_buy_threshold !== null ? (float) $bot->rsi_buy_threshold : 40.0;
             $rsiSell = $bot->rsi_sell_threshold !== null ? (float) $bot->rsi_sell_threshold : 60.0;
             $useMacdFilter = (bool) ($bot->use_macd_filter ?? false);
-            $signal = RsiEmaStrategy::decide($closes, $rsiPeriod, $emaPeriod, $rsiBuy, $rsiSell, $useMacdFilter, 12, 26, 9);
+            $emaTolerancePercent = (float) (config('trading.ema_tolerance_percent', 1));
+            $emaToleranceDeepPercent = config('trading.ema_tolerance_deep_percent') !== null ? (float) config('trading.ema_tolerance_deep_percent') : null;
+            $rsiDeepOversold = config('trading.rsi_deep_oversold') !== null ? (float) config('trading.rsi_deep_oversold') : null;
+            $signal = RsiEmaStrategy::decide($closes, $rsiPeriod, $emaPeriod, $rsiBuy, $rsiSell, $useMacdFilter, 12, 26, 9, $emaTolerancePercent, $emaToleranceDeepPercent, $rsiDeepOversold);
             $this->info("Сигнал (Signal): {$signal}");
 
             // Детальное логирование решения стратегии

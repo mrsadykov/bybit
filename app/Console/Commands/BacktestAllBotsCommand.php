@@ -67,21 +67,35 @@ class BacktestAllBotsCommand extends Command
             }
             $this->line('');
 
+            $useMacdFilter = (bool) ($bot->use_macd_filter ?? false);
+            $emaTolerance = (float) (config('trading.ema_tolerance_percent', 1));
+            $emaToleranceDeep = config('trading.ema_tolerance_deep_percent');
+            $rsiDeepOversold = config('trading.rsi_deep_oversold');
+
+            $params = [
+                'symbol' => $bot->symbol,
+                '--timeframe' => $bot->timeframe,
+                '--exchange' => $exchange,
+                '--period' => $period,
+                '--rsi-period' => $rsiPeriod,
+                '--ema-period' => $emaPeriod,
+                '--rsi-buy-threshold' => $rsiBuyThreshold,
+                '--rsi-sell-threshold' => $rsiSellThreshold,
+                '--position-size' => $positionSize,
+                '--stop-loss' => $stopLoss ?: '',
+                '--take-profit' => $takeProfit ?: '',
+                '--ema-tolerance' => $emaTolerance,
+                '--json' => true,
+            ];
+            if ($useMacdFilter) {
+                $params['--use-macd-filter'] = true;
+            }
+            if ($emaToleranceDeep !== null && $emaToleranceDeep !== '' && $rsiDeepOversold !== null && $rsiDeepOversold !== '') {
+                $params['--ema-tolerance-deep'] = $emaToleranceDeep;
+                $params['--rsi-deep-oversold'] = $rsiDeepOversold;
+            }
             try {
-                Artisan::call('strategy:backtest', [
-                    'symbol' => $bot->symbol,
-                    '--timeframe' => $bot->timeframe,
-                    '--exchange' => $exchange,
-                    '--period' => $period,
-                    '--rsi-period' => $rsiPeriod,
-                    '--ema-period' => $emaPeriod,
-                    '--rsi-buy-threshold' => $rsiBuyThreshold,
-                    '--rsi-sell-threshold' => $rsiSellThreshold,
-                    '--position-size' => $positionSize,
-                    '--stop-loss' => $stopLoss ?: '',
-                    '--take-profit' => $takeProfit ?: '',
-                    '--json' => true,
-                ]);
+                Artisan::call('strategy:backtest', $params);
 
                 // Получаем вывод из Artisan (теперь $this->line() используется вместо fwrite)
                 $output = Artisan::output();

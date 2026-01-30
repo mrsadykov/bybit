@@ -14,6 +14,9 @@ class RsiEmaStrategy
      * @param int $macdFast Период быстрой EMA для MACD (по умолчанию 12)
      * @param int $macdSlow Период медленной EMA для MACD (по умолчанию 26)
      * @param int $macdSignal Период сигнальной линии MACD (по умолчанию 9)
+     * @param float $emaTolerancePercent Допуск цены относительно EMA для BUY/SELL в % (1 = 1%). BUY: цена >= EMA*(1 - tolerance/100)
+     * @param float|null $emaToleranceDeepPercent При глубокой перепроданности (RSI < rsiDeepOversold) допуск для BUY в % (например 3). null = не использовать
+     * @param float|null $rsiDeepOversold Порог RSI для «глубокой перепроданности» (например 25). null = отключено
      */
     public static function decide(
         array $closes,
@@ -24,7 +27,10 @@ class RsiEmaStrategy
         bool $useMacdFilter = false,
         int $macdFast = 12,
         int $macdSlow = 26,
-        int $macdSignal = 9
+        int $macdSignal = 9,
+        float $emaTolerancePercent = 1.0,
+        ?float $emaToleranceDeepPercent = null,
+        ?float $rsiDeepOversold = null
     ): string {
         // Значения по умолчанию (для обратной совместимости)
         $rsiPeriod = $rsiPeriod ?? 17;
@@ -38,7 +44,12 @@ class RsiEmaStrategy
 
         $currentPrice = end($closes);
 
-        $emaTolerance = 0.01; // 1% допуск
+        // Допуск для BUY: цена может быть ниже EMA на tolerance%
+        $buyTolerance = $emaTolerancePercent / 100.0;
+        if ($rsiDeepOversold !== null && $emaToleranceDeepPercent !== null && $rsi < $rsiDeepOversold) {
+            $buyTolerance = $emaToleranceDeepPercent / 100.0;
+        }
+        $sellTolerance = $emaTolerancePercent / 100.0;
 
         $macdOkBuy = true;
         $macdOkSell = true;
@@ -52,11 +63,11 @@ class RsiEmaStrategy
             }
         }
 
-        if ($rsi < $rsiBuyThreshold && $currentPrice >= $ema * (1 - $emaTolerance) && $macdOkBuy) {
+        if ($rsi < $rsiBuyThreshold && $currentPrice >= $ema * (1 - $buyTolerance) && $macdOkBuy) {
             return 'BUY';
         }
 
-        if ($rsi > $rsiSellThreshold && $currentPrice <= $ema * (1 + $emaTolerance) && $macdOkSell) {
+        if ($rsi > $rsiSellThreshold && $currentPrice <= $ema * (1 + $sellTolerance) && $macdOkSell) {
             return 'SELL';
         }
 

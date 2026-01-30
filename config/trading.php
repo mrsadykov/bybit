@@ -17,6 +17,11 @@ return [
     // Лимит открытых позиций (глобально по всем ботам пользователя): при достижении новые BUY не выставляются
     'max_open_positions_total' => env('TRADING_MAX_OPEN_POSITIONS_TOTAL', null), // например 5 — не более 5 открытых позиций суммарно
 
+    // Допуск цены относительно EMA для стратегии RSI+EMA (в процентах)
+    'ema_tolerance_percent' => (float) (env('TRADING_EMA_TOLERANCE_PERCENT', 1)), // BUY: цена >= EMA*(1 - X%). 1 = консервативно, 2–3 = больше входов
+    'ema_tolerance_deep_percent' => env('TRADING_EMA_TOLERANCE_DEEP_PERCENT', null), // при RSI < rsi_deep_oversold использовать этот допуск для BUY (например 3)
+    'rsi_deep_oversold' => env('TRADING_RSI_DEEP_OVERSOLD', null), // порог «глубокой перепроданности» (например 25). null = отключено
+
     'bybit' => [
         'env' => env('BYBIT_ENV', 'testnet'), // testnet | production
     ],
