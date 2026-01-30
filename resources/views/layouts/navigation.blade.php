@@ -21,6 +21,9 @@
                     <x-nav-link :href="route('bots.index')" :active="request()->routeIs('bots.*')">
                         {{ __('bots.title') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('futures-bots.index')" :active="request()->routeIs('futures-bots.*')">
+                        {{ __('futures.title') }}
+                    </x-nav-link>
                 </div>
             </div>
 
@@ -105,6 +108,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('bots.index')" :active="request()->routeIs('bots.*')">
                 {{ __('bots.title') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('futures-bots.index')" :active="request()->routeIs('futures-bots.*')">
+                {{ __('futures.title') }}
             </x-responsive-nav-link>
         </div>
 

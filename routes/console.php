@@ -17,3 +17,5 @@ Schedule::command('telegram:daily-stats')->dailyAt('09:00');
 Schedule::command('positions:close-small')->dailyAt('17:26')->withoutOverlapping();
 // Анализ производительности каждый день в 00:00
 Schedule::command('stats:analyze --days=30')->dailyAt('00:00')->withoutOverlapping();
+
+Schedule::command('futures:run')->everyFiveMinutes();

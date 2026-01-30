@@ -29,6 +29,11 @@ Route::middleware('auth')->group(function () {
     Route::resource('bots', \App\Http\Controllers\BotController::class);
     Route::post('bots/{bot}/toggle-active', [\App\Http\Controllers\BotController::class, 'toggleActive'])
         ->name('bots.toggle-active');
+
+    // Futures Bots routes (OKX perpetual swap)
+    Route::resource('futures-bots', \App\Http\Controllers\FuturesBotController::class)->parameters(['futures-bots' => 'futures_bot']);
+    Route::post('futures-bots/{futures_bot}/toggle-active', [\App\Http\Controllers\FuturesBotController::class, 'toggleActive'])
+        ->name('futures-bots.toggle-active');
 });
 
 require __DIR__.'/auth.php';
