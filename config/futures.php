@@ -27,4 +27,8 @@ return [
 
     // Тестнет: если true, не выставлять реальные ордера (или использовать OKX Demo)
     'dry_run_default' => env('FUTURES_DRY_RUN_DEFAULT', true),
+
+    // Алерт в Telegram при дневном убытке по всем фьючерсным ботам (сумма realized_pnl за сегодня).
+    // Например 50 — алерт, если дневной PnL <= -50 USDT. null — не слать.
+    'alert_daily_loss_usdt' => env('FUTURES_ALERT_DAILY_LOSS_USDT') !== null ? (float) env('FUTURES_ALERT_DAILY_LOSS_USDT') : null,
 ];

@@ -419,6 +419,30 @@ class TelegramService
     }
 
     /**
+     * Алерт: дневной убыток по фьючерсным ботам превысил лимит
+     */
+    public function notifyFuturesDailyLossAlert(float $dailyPnLUsdt, float $limitUsdt): void
+    {
+        $message = "⚠️ <b>ФЬЮЧЕРСЫ: ДНЕВНОЙ УБЫТОК (FUTURES DAILY LOSS ALERT)</b>\n\n";
+        $message .= "Дневной PnL (Daily PnL): <b>" . number_format($dailyPnLUsdt, 2) . " USDT</b>\n";
+        $message .= "Лимит (Limit): <b>" . number_format($limitUsdt, 2) . " USDT</b>\n";
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $this->sendMessage($message);
+    }
+
+    /**
+     * Алерт: дневной убыток по BTC-quote ботам превысил лимит
+     */
+    public function notifyBtcQuoteDailyLossAlert(float $dailyPnLBtc, float $limitBtc): void
+    {
+        $message = "⚠️ <b>BTC-QUOTE: ДНЕВНОЙ УБЫТОК (BTC-QUOTE DAILY LOSS ALERT)</b>\n\n";
+        $message .= "Дневной PnL (Daily PnL): <b>" . number_format($dailyPnLBtc, 8) . " BTC</b>\n";
+        $message .= "Лимит (Limit): <b>" . number_format($limitBtc, 8) . " BTC</b>\n";
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $this->sendMessage($message);
+    }
+
+    /**
      * Короткое уведомление: бот пропущен в этом запуске из‑за лимита риска (не чаще 1 раза в час).
      */
     public function notifyBotSkippedRiskLimit(string $symbol): void

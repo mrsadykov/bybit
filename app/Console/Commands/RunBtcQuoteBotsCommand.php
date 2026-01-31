@@ -10,6 +10,7 @@ use App\Trading\Indicators\EmaIndicator;
 use App\Trading\Indicators\RsiIndicator;
 use App\Trading\Strategies\RsiEmaStrategy;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Запуск ботов, торгующих альтами за BTC (пары SOL-BTC, ETH-BTC и т.д.).
@@ -177,6 +178,28 @@ class RunBtcQuoteBotsCommand extends Command
                     }
                 } catch (\Throwable $e) {
                     $this->error('Ошибка размещения ордера SELL: ' . $e->getMessage());
+                }
+            }
+        }
+
+        // Алерт при дневном убытке по всем BTC-quote ботам
+        $dailyLossLimitBtc = config('btc_quote.alert_daily_loss_btc');
+        if ($dailyLossLimitBtc !== null && $dailyLossLimitBtc > 0) {
+            $todayStart = now()->startOfDay();
+            $dailyPnLBtc = (float) BtcQuoteTrade::whereIn('btc_quote_bot_id', $bots->pluck('id'))
+                ->whereNotNull('closed_at')
+                ->whereNotNull('realized_pnl_btc')
+                ->where('closed_at', '>=', $todayStart)
+                ->sum('realized_pnl_btc');
+            if ($dailyPnLBtc <= -$dailyLossLimitBtc) {
+                $cacheKey = 'telegram_btc_quote_daily_loss_alert_' . now()->format('Y-m-d');
+                if (! Cache::has($cacheKey)) {
+                    try {
+                        $telegram->notifyBtcQuoteDailyLossAlert($dailyPnLBtc, $dailyLossLimitBtc);
+                        Cache::put($cacheKey, true, now()->endOfDay());
+                    } catch (\Throwable $e) {
+                        logger()->warning('Telegram BTC-quote daily loss alert failed', ['error' => $e->getMessage()]);
+                    }
                 }
             }
         }

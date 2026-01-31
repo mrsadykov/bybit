@@ -10,6 +10,7 @@ use App\Trading\Indicators\EmaIndicator;
 use App\Trading\Indicators\RsiIndicator;
 use App\Trading\Strategies\RsiEmaStrategy;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Запуск фьючерсных ботов (только OKX, perpetual swap).
@@ -186,6 +187,28 @@ class RunFuturesBotsCommand extends Command
                     }
                 } catch (\Throwable $e) {
                     $this->error('Ошибка размещения ордера SELL: ' . $e->getMessage());
+                }
+            }
+        }
+
+        // Алерт при дневном убытке по всем фьючерсным ботам
+        $dailyLossLimit = config('futures.alert_daily_loss_usdt');
+        if ($dailyLossLimit !== null && $dailyLossLimit > 0) {
+            $todayStart = now()->startOfDay();
+            $dailyPnL = (float) FuturesTrade::whereIn('futures_bot_id', $bots->pluck('id'))
+                ->whereNotNull('closed_at')
+                ->whereNotNull('realized_pnl')
+                ->where('closed_at', '>=', $todayStart)
+                ->sum('realized_pnl');
+            if ($dailyPnL <= -$dailyLossLimit) {
+                $cacheKey = 'telegram_futures_daily_loss_alert_' . now()->format('Y-m-d');
+                if (! Cache::has($cacheKey)) {
+                    try {
+                        $telegram->notifyFuturesDailyLossAlert($dailyPnL, $dailyLossLimit);
+                        Cache::put($cacheKey, true, now()->endOfDay());
+                    } catch (\Throwable $e) {
+                        logger()->warning('Telegram futures daily loss alert failed', ['error' => $e->getMessage()]);
+                    }
                 }
             }
         }
