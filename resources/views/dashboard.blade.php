@@ -56,6 +56,7 @@
                     <div class="flex items-center space-x-2 mb-4">
                         <span class="text-2xl">📊</span>
                         <h3 class="text-xl font-bold text-gray-900">{{ __('dashboard.main_metrics') }}</h3>
+                        <span class="text-sm text-gray-500">({{ __('dashboard.all_bots') }})</span>
                     </div>
                     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                         <div class="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
@@ -84,6 +85,11 @@
                                 <div class="text-2xl font-bold {{ $totalPnL >= 0 ? 'text-green-600' : 'text-red-600' }} mb-1">
                                     {{ number_format($totalPnL, 4) }} USDT
                                 </div>
+                                @if(isset($totalPnLBtcQuoteBtc) && (float)$totalPnLBtcQuoteBtc != 0)
+                                    <div class="text-xs text-gray-500">
+                                        {{ __('dashboard.btc_quote_pnl') }}: <span class="font-semibold">{{ number_format($totalPnLBtcQuoteBtc, 8) }} BTC</span>
+                                    </div>
+                                @endif
                                 @if($closedPositionsCount > 0)
                                     <div class="text-xs text-gray-500">
                                         {{ __('dashboard.win_rate') }}: <span class="font-semibold">{{ $winRate }}%</span>
@@ -105,7 +111,7 @@
                         <div class="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
                             <div class="p-4">
                                 <div class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">{{ __('dashboard.open_positions') }}</div>
-                                <div class="text-2xl font-bold text-blue-600 mb-1">{{ $openPositions->count() }}</div>
+                                <div class="text-2xl font-bold text-blue-600 mb-1">{{ count($openPositions) }}</div>
                                 <div class="text-xs text-gray-500">{{ __('dashboard.positions') }}</div>
                             </div>
                         </div>
@@ -303,7 +309,7 @@
             @endif
 
             <!-- Открытые позиции -->
-            @if($openPositions->count() > 0)
+            @if(count($openPositions) > 0)
             <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-4">
@@ -311,12 +317,13 @@
                             <span class="text-2xl">📋</span>
                             <h3 class="text-xl font-bold text-gray-900">{{ __('dashboard.open_positions_title') }}</h3>
                         </div>
-                        <span class="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">{{ $openPositions->count() }}</span>
+                        <span class="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">{{ count($openPositions) }}</span>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{{ __('dashboard.position_type') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{{ __('dashboard.symbol') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{{ __('dashboard.quantity') }}</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">{{ __('dashboard.entry_price') }}</th>
@@ -326,10 +333,19 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($openPositions as $position)
                                 <tr class="hover:bg-gray-50 transition-colors">
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{{ $position->symbol }}</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{{ number_format($position->quantity, 8) }}</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">${{ number_format($position->price, 2) }}</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">#{{ $position->bot->id }}</td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm">
+                                        @if($position['type'] === 'spot')
+                                            <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">{{ __('dashboard.type_spot') }}</span>
+                                        @elseif($position['type'] === 'futures')
+                                            <span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">{{ __('dashboard.type_futures') }}</span>
+                                        @else
+                                            <span class="px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">{{ __('dashboard.type_btc_quote') }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{{ $position['symbol'] }}</td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{{ number_format($position['quantity'], 8) }}</td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">${{ number_format($position['price'], 2) }}</td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{{ $position['bot_label'] }}</td>
                                 </tr>
                                 @endforeach
                             </tbody>

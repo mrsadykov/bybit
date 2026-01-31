@@ -37,4 +37,10 @@ return [
     'chart_cumulative_pnl' => 'Кумулятивный PnL (кривая эквити)',
     'last_days' => 'За последние :days дн.',
     'charts_no_data' => 'За последние 30 дней нет закрытых сделок для графиков.',
+    'all_bots' => 'Spot, фьючерсы, BTC-quote',
+    'btc_quote_pnl' => 'PnL (BTC-quote)',
+    'position_type' => 'Тип',
+    'type_spot' => 'Spot',
+    'type_futures' => 'Фьючерсы',
+    'type_btc_quote' => 'BTC-quote',
 ];

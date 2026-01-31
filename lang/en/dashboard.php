@@ -37,4 +37,10 @@ return [
     'chart_cumulative_pnl' => 'Cumulative PnL (Equity Curve)',
     'last_days' => 'Last :days days',
     'charts_no_data' => 'No closed trades in the last 30 days for charts.',
+    'all_bots' => 'Spot, Futures, BTC-quote',
+    'btc_quote_pnl' => 'PnL (BTC-quote)',
+    'position_type' => 'Type',
+    'type_spot' => 'Spot',
+    'type_futures' => 'Futures',
+    'type_btc_quote' => 'BTC-quote',
 ];
