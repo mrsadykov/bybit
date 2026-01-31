@@ -24,6 +24,9 @@
                     <x-nav-link :href="route('futures-bots.index')" :active="request()->routeIs('futures-bots.*')">
                         {{ __('futures.title') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('btc-quote-bots.index')" :active="request()->routeIs('btc-quote-bots.*')">
+                        {{ __('btc_quote.title') }}
+                    </x-nav-link>
                 </div>
             </div>
 
@@ -111,6 +114,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('futures-bots.index')" :active="request()->routeIs('futures-bots.*')">
                 {{ __('futures.title') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('btc-quote-bots.index')" :active="request()->routeIs('btc-quote-bots.*')">
+                {{ __('btc_quote.title') }}
             </x-responsive-nav-link>
         </div>
 

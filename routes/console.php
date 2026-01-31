@@ -19,3 +19,4 @@ Schedule::command('positions:close-small')->dailyAt('17:26')->withoutOverlapping
 Schedule::command('stats:analyze --days=30')->dailyAt('00:00')->withoutOverlapping();
 
 Schedule::command('futures:run')->everyFiveMinutes();
+Schedule::command('btc-quote:run')->everyFiveMinutes();

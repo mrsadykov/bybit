@@ -271,6 +271,42 @@ class OKXService
     }
 
     /**
+     * Market Buy за quote-валюту (для пар к BTC: покупка SOL/ETH за BTC)
+     * @param string $symbol Пара (SOLBTC, ETHBTC)
+     * @param float $quoteAmount Сумма в quote (BTC)
+     */
+    public function placeMarketBuyWithQuote(string $symbol, float $quoteAmount): array
+    {
+        $okxSymbol = $this->formatSymbol($symbol);
+        return $this->privatePost('/trade/order', [
+            'instId' => $okxSymbol,
+            'tdMode' => 'cash',
+            'side' => 'buy',
+            'ordType' => 'market',
+            'sz' => (string) $quoteAmount,
+            'tgtCcy' => 'quote_ccy',
+        ]);
+    }
+
+    /**
+     * Market Sell базовой валюты (для SOLBTC — продажа SOL за BTC)
+     * @param string $symbol Пара (SOLBTC, ETHBTC)
+     * @param float $baseAmount Количество базового актива (SOL, ETH)
+     */
+    public function placeMarketSellBase(string $symbol, float $baseAmount): array
+    {
+        $okxSymbol = $this->formatSymbol($symbol);
+        return $this->privatePost('/trade/order', [
+            'instId' => $okxSymbol,
+            'tdMode' => 'cash',
+            'side' => 'sell',
+            'ordType' => 'market',
+            'sz' => (string) $baseAmount,
+            'tgtCcy' => 'base_ccy',
+        ]);
+    }
+
+    /**
      * Получить информацию об ордере
      * 
      * @param string $symbol Торговая пара (например: BTCUSDT)
@@ -344,7 +380,7 @@ class OKXService
     /* ================= HELPER METHODS ================= */
 
     /**
-     * Конвертирует BTCUSDT в BTC-USDT (формат OKX)
+     * Конвертирует BTCUSDT в BTC-USDT, SOLBTC в SOL-BTC (формат OKX)
      */
     protected function formatSymbol(string $symbol): string
     {
@@ -357,6 +393,12 @@ class OKXService
         if (str_ends_with($symbol, 'USDT')) {
             $base = substr($symbol, 0, -4);
             return $base . '-USDT';
+        }
+
+        // Для SOLBTC, ETHBTC -> SOL-BTC, ETH-BTC (пары к BTC)
+        if (str_ends_with($symbol, 'BTC')) {
+            $base = substr($symbol, 0, -3);
+            return $base . '-BTC';
         }
 
         return $symbol;

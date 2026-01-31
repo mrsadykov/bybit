@@ -223,6 +223,34 @@ class TelegramService
     }
 
     /**
+     * Запуск ботов за BTC (BTC-quote bots run started)
+     */
+    public function notifyBtcQuoteRunStart(int $botCount): void
+    {
+        $message = "₿ <b>ЗАПУСК БОТОВ ЗА BTC (BTC-QUOTE BOTS RUN STARTED)</b>\n\n";
+        $message .= "Активных ботов (Active bots): <b>{$botCount}</b>\n";
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $this->sendMessage($message);
+    }
+
+    /**
+     * Сделка по парам к BTC (BTC-quote trade)
+     */
+    public function notifyBtcQuoteTrade(string $symbol, string $side, float $priceBtc, float $quantity, ?float $realizedPnlBtc = null): void
+    {
+        $message = "₿ <b>БОТ ЗА BTC (BTC-QUOTE)</b>\n\n";
+        $message .= "Символ (Symbol): <b>{$symbol}</b>\n";
+        $message .= "Действие (Action): <b>{$side}</b>\n";
+        $message .= "Цена (Price): <b>{$priceBtc} BTC</b>\n";
+        $message .= "Количество (Quantity): <b>{$quantity}</b>\n";
+        if ($realizedPnlBtc !== null) {
+            $message .= "Реализованный PnL (Realized PnL): <b>" . round($realizedPnlBtc, 8) . " BTC</b>\n";
+        }
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+        $this->sendMessage($message);
+    }
+
+    /**
      * Отправить уведомление о HOLD сигнале (No action taken)
      */
     public function notifyHold(string $symbol, float $price, string $signal, float $rsi = null, float $ema = null): void

@@ -34,6 +34,11 @@ Route::middleware('auth')->group(function () {
     Route::resource('futures-bots', \App\Http\Controllers\FuturesBotController::class)->parameters(['futures-bots' => 'futures_bot']);
     Route::post('futures-bots/{futures_bot}/toggle-active', [\App\Http\Controllers\FuturesBotController::class, 'toggleActive'])
         ->name('futures-bots.toggle-active');
+
+    // BTC-quote Bots routes (trade alts for BTC on OKX)
+    Route::resource('btc-quote-bots', \App\Http\Controllers\BtcQuoteBotController::class)->parameters(['btc-quote-bots' => 'btc_quote_bot']);
+    Route::post('btc-quote-bots/{btc_quote_bot}/toggle-active', [\App\Http\Controllers\BtcQuoteBotController::class, 'toggleActive'])
+        ->name('btc-quote-bots.toggle-active');
 });
 
 require __DIR__.'/auth.php';
