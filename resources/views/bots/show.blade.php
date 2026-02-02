@@ -190,6 +190,14 @@
                                 <div class="font-medium text-gray-600">{{ $bot->risk_drawdown_reset_at->format('Y-m-d H:i') }}</div>
                             </div>
                         @endif
+                        <div class="col-span-full pt-2 border-t border-gray-200">
+                            <form action="{{ route('bots.reset-risk-baseline', $bot) }}" method="POST" class="inline" onsubmit="return confirm('{{ __('bots.reset_risk_baseline_confirm') }}');">
+                                @csrf
+                                <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded text-sm">
+                                    {{ __('bots.reset_risk_baseline') }}
+                                </button>
+                            </form>
+                        </div>
                         <div>
                             <div class="text-sm text-gray-500">{{ __('bots.use_macd_filter') }}</div>
                             <div class="font-medium">{{ $bot->use_macd_filter ? __('common.yes') : __('common.no') }}</div>
