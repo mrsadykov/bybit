@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\BotDecisionLog;
 use App\Models\BtcQuoteBot;
 use App\Models\BtcQuoteTrade;
 use App\Services\Exchanges\ExchangeServiceFactory;
@@ -106,6 +107,7 @@ class RunBtcQuoteBotsCommand extends Command
 
             if ($signal === 'BUY') {
                 if ($hasPosition) {
+                    BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'position_already_open');
                     $this->line("Позиция уже открыта (Position already open), пропуск BUY");
                     continue;
                 }
@@ -113,15 +115,18 @@ class RunBtcQuoteBotsCommand extends Command
                 $balanceBtc = $service->getBalance('BTC');
                 $requiredBtc = (float) $bot->position_size_btc;
                 if ($balanceBtc < $requiredBtc && ! $bot->dry_run) {
+                    BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'insufficient_btc');
                     $this->warn("Недостаточно BTC (Insufficient BTC). Доступно: {$balanceBtc}, нужно: {$requiredBtc}");
                     continue;
                 }
 
                 if ($bot->dry_run) {
+                    BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'BUY', $priceBtc, $lastRsi, $lastEma, 'dry_run');
                     $this->info("[DRY RUN] BUY на {$requiredBtc} BTC по {$priceBtc} BTC");
                     continue;
                 }
 
+                BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'BUY', $priceBtc, $lastRsi, $lastEma, 'strategy_buy');
                 try {
                     $res = $service->placeMarketBuyWithQuote($bot->symbol, $requiredBtc);
                     $orderId = $res['data'][0]['ordId'] ?? null;
@@ -153,10 +158,12 @@ class RunBtcQuoteBotsCommand extends Command
                 }
 
                 if ($bot->dry_run) {
+                    BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SELL', $priceBtc, $lastRsi, $lastEma, 'dry_run');
                     $this->info("[DRY RUN] SELL {$sellQty} по {$priceBtc} BTC");
                     continue;
                 }
 
+                BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SELL', $priceBtc, $lastRsi, $lastEma, 'strategy_sell');
                 try {
                     $sz = rtrim(rtrim(sprintf('%.8f', $sellQty), '0'), '.');
                     $res = $service->placeMarketSellBase($bot->symbol, (float) $sz);
@@ -179,6 +186,8 @@ class RunBtcQuoteBotsCommand extends Command
                 } catch (\Throwable $e) {
                     $this->error('Ошибка размещения ордера SELL: ' . $e->getMessage());
                 }
+            } else {
+                BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'HOLD', $priceBtc, $lastRsi, $lastEma, $signal === 'SELL' ? 'no_position' : 'strategy_hold');
             }
         }
 

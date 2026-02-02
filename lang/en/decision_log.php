@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'title' => 'Decision Log',
+    'filters' => 'Filters',
+    'bot_type' => 'Bot type',
+    'all_types' => 'All types',
+    'spot' => 'Spot',
+    'futures' => 'Futures',
+    'btc_quote' => 'BTC-quote',
+    'bot' => 'Bot',
+    'all_bots' => 'All bots',
+    'symbol' => 'Symbol',
+    'all_symbols' => 'All symbols',
+    'signal' => 'Signal',
+    'all_signals' => 'All signals',
+    'date_from' => 'From date',
+    'date_to' => 'To date',
+    'date' => 'Date',
+    'type' => 'Type',
+    'price' => 'Price',
+    'reason' => 'Reason',
+    'total_found' => 'Total found',
+    'no_logs' => 'No decision logs found',
+];

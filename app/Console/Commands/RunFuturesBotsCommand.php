@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\BotDecisionLog;
 use App\Models\FuturesBot;
 use App\Models\FuturesTrade;
 use App\Services\Exchanges\OKX\OKXFuturesService;
@@ -105,6 +106,7 @@ class RunFuturesBotsCommand extends Command
 
             if ($signal === 'BUY') {
                 if ($hasPosition) {
+                    BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'position_already_open');
                     $this->line("Позиция уже открыта (Position already open), пропуск BUY");
                     continue;
                 }
@@ -112,6 +114,7 @@ class RunFuturesBotsCommand extends Command
                 $balance = $service->getBalance('USDT');
                 $marginRequired = (float) $bot->position_size_usdt;
                 if ($balance < $marginRequired && ! $bot->dry_run) {
+                    BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'insufficient_margin');
                     $this->warn("Недостаточно маржи (Insufficient margin). Доступно: {$balance}, нужно: {$marginRequired}");
                     continue;
                 }
@@ -123,9 +126,12 @@ class RunFuturesBotsCommand extends Command
                 }
 
                 if ($bot->dry_run) {
+                    BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'BUY', $price, $lastRsi, $lastEma, 'dry_run');
                     $this->info("[DRY RUN] BUY {$contracts} контрактов по {$price}");
                     continue;
                 }
+
+                BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'BUY', $price, $lastRsi, $lastEma, 'strategy_buy');
 
                 try {
                     $service->setLeverageForSymbol($bot->symbol, (int) $bot->leverage, 'cross');
@@ -163,10 +169,12 @@ class RunFuturesBotsCommand extends Command
                 }
 
                 if ($bot->dry_run) {
+                    BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SELL', $price, $lastRsi, $lastEma, 'dry_run');
                     $this->info("[DRY RUN] SELL {$posSize} контрактов по {$price}");
                     continue;
                 }
 
+                BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SELL', $price, $lastRsi, $lastEma, 'strategy_sell');
                 try {
                     $sz = rtrim(rtrim(sprintf('%.8f', $posSize), '0'), '.');
                     $res = $service->placeFuturesMarketOrder($bot->symbol, 'sell', $sz, true);
@@ -188,6 +196,9 @@ class RunFuturesBotsCommand extends Command
                 } catch (\Throwable $e) {
                     $this->error('Ошибка размещения ордера SELL: ' . $e->getMessage());
                 }
+            } else {
+                // HOLD или SELL без позиции
+                BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'HOLD', $price, $lastRsi, $lastEma, $signal === 'SELL' ? 'no_position' : 'strategy_hold');
             }
         }
 

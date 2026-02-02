@@ -15,6 +15,7 @@
 - Риск-лимиты для spot: max_daily_loss, max_drawdown, max_open_positions_total
 - Алерты: дневной убыток, серия убытков, целевая прибыль
 - Расписание: `bots:run`, `futures:run`, `btc-quote:run` каждые 5 мин; `orders:sync`, heartbeat, daily stats
+- **Очередь для Telegram:** при `TELEGRAM_QUEUE=true` уведомления ставятся в очередь (job `SendTelegramMessageJob`), нужен `php artisan queue:work`. См. `docs/TELEGRAM_QUEUE.md`.
 
 ---
 
@@ -38,14 +39,9 @@
 
 **Зачем:** контроль риска по фьючерсам и BTC-quote без отдельного дашборда.
 
-### 3. Очередь для Telegram и тяжёлых задач
+### 3. ~~Очередь для Telegram и тяжёлых задач~~ ✅
 
-Сейчас уведомления и, при необходимости, синхронизация выполняются в том же процессе, что и `bots:run` / `futures:run` / `btc-quote:run`.
-
-- Вынести отправку в Telegram в job (Laravel Queue) и ставить в очередь после принятия решения.
-- При желании — вынести в очередь и `orders:sync` по одному боту.
-
-**Зачем:** меньше задержек при сбоях Telegram/API, меньше риск таймаута по крону.
+Реализовано: при `TELEGRAM_QUEUE=true` все вызовы `TelegramService::sendMessage()` ставят в очередь `SendTelegramMessageJob`; воркер отправляет с retry. См. `docs/TELEGRAM_QUEUE.md`. Опционально — вынести в очередь `orders:sync` по одному боту.
 
 ---
 

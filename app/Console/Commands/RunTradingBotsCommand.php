@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\BotDecisionLog;
 use App\Models\Trade;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
@@ -53,6 +54,7 @@ class RunTradingBotsCommand extends Command
 
             // Проверка лимитов риска по боту: при достижении — пропуск бота до следующего дня (daily loss) или до ручного изменения (drawdown)
             if ($this->isBotPausedByRiskLimits($bot, $telegram)) {
+                BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', null, null, null, 'risk_limit');
                 $this->warn("Бот {$bot->symbol} пропущен: достигнут лимит риска (Bot skipped: risk limit reached)");
                 $skipNotifyKey = 'risk_skip_notify_' . $bot->id . '_' . now()->format('Y-m-d-H');
                 if (!Cache::has($skipNotifyKey)) {
@@ -176,6 +178,8 @@ class RunTradingBotsCommand extends Command
                 'decision_reason' => $this->getDecisionReason($signal, $lastRsi, $lastEma, $price, $netPosition),
             ]);
 
+            $decisionReason = $this->getDecisionReason($signal, $lastRsi, $lastEma, $price, $netPosition);
+
             /*
             |--------------------------------------------------------------------------
             | STOP-LOSS / TAKE-PROFIT CHECK
@@ -222,6 +226,7 @@ class RunTradingBotsCommand extends Command
                                 // Проверка минимального размера ордера для SELL (SL/TP)
                                 [$passesMin, $minQty] = $positionManager->passesMinSell($bot->symbol, $btcQty);
                                 if (!$passesMin) {
+                                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'quantity_too_small_sltp');
                                     $this->warn("Количество {$btcQty} {$baseCoin} меньше минимума {$minQty} {$baseCoin} — пропуск SELL ({$reason}) (Quantity {$btcQty} {$baseCoin} is less than minimum {$minQty} {$baseCoin} — skip SELL ({$reason}))");
                                     $telegram->notifySkip('SELL', "Количество слишком мало для {$reason} (Quantity too small: {$btcQty} < {$minQty})");
                                     continue;
@@ -232,6 +237,7 @@ class RunTradingBotsCommand extends Command
                                     $this->warn("ТЕСТОВЫЙ РЕЖИМ SELL ({$reason}) (DRY RUN SELL) {$btcQty} {$baseCoin}");
                                     $telegram->notifySell($bot->symbol, $btcQty, $price, true);
                                 } else {
+                                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SELL', $price, $lastRsi, $lastEma, $reason);
                                     $this->warn("РЕАЛЬНАЯ ПРОДАЖА ({$reason}) ВЫПОЛНЯЕТСЯ (REAL SELL EXECUTING) ({$btcQty} {$baseCoin})");
                                     $telegram->notifySell($bot->symbol, $btcQty, $price, false);
 
@@ -306,6 +312,7 @@ class RunTradingBotsCommand extends Command
             if ($signal === 'BUY') {
 
                 if (! $positionManager->canBuy()) {
+                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'position_already_open');
                     $this->warn('BUY пропущен: позиция уже открыта (BUY skipped: position already open)');
                     $telegram->notifySkip('BUY', 'Позиция уже открыта (Position already open)');
                     continue;
@@ -320,6 +327,7 @@ class RunTradingBotsCommand extends Command
                         ->whereNull('closed_at')
                         ->count();
                     if ($openCount >= (int) $maxOpenTotal) {
+                        BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'max_open_positions');
                         $this->warn("BUY пропущен: достигнут лимит открытых позиций ({$openCount}/{$maxOpenTotal}) (BUY skipped: max open positions)");
                         $cacheKey = 'risk_max_positions_notified_' . now()->format('Y-m-d-H-i');
                         if (!Cache::has($cacheKey)) {
@@ -337,6 +345,7 @@ class RunTradingBotsCommand extends Command
                 $usdtAmount = (float) $bot->position_size;
 
                 if ($usdtAmount <= 0) {
+                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'invalid_position_size');
                     $this->warn('Неверный размер позиции (Invalid position size)');
                     $telegram->notifySkip('BUY', 'Неверный размер позиции (Invalid position size)');
                     continue;
@@ -345,6 +354,7 @@ class RunTradingBotsCommand extends Command
                 // Проверка минимальной суммы
                 $minNotional = config('trading.min_notional_usdt', 1);
                 if ($usdtAmount < $minNotional) {
+                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'amount_below_min');
                     $this->warn("BUY пропущен: сумма {$usdtAmount} USDT меньше минимума {$minNotional} USDT (BUY skipped: amount {$usdtAmount} USDT is less than minimum {$minNotional} USDT)");
                     $telegram->notifySkip('BUY', "Сумма {$usdtAmount} USDT меньше минимума {$minNotional} USDT (Amount {$usdtAmount} USDT is less than minimum {$minNotional} USDT)");
                     continue;
@@ -357,6 +367,7 @@ class RunTradingBotsCommand extends Command
                         $this->line("Баланс USDT (USDT Balance): {$balance}");
 
                         if ($balance < $usdtAmount) {
+                            BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'insufficient_balance');
                             $this->error("BUY пропущен: недостаточно баланса. Требуется: {$usdtAmount} USDT, Доступно: {$balance} USDT (BUY skipped: insufficient balance. Required: {$usdtAmount} USDT, Available: {$balance} USDT)");
                             logger()->warning('Insufficient balance for BUY', [
                                 'bot_id' => $bot->id,
@@ -372,17 +383,20 @@ class RunTradingBotsCommand extends Command
                             'bot_id' => $bot->id,
                             'error' => $e->getMessage(),
                         ]);
+                        BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'balance_check_error');
                         $telegram->notifyError('Проверка баланса BUY (BUY Balance Check)', $e->getMessage());
                         continue;
                     }
                 }
 
                 if (! config('trading.real_trading') || $bot->dry_run) {
+                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'BUY', $price, $lastRsi, $lastEma, 'dry_run');
                     $this->warn("ТЕСТОВЫЙ РЕЖИМ BUY (DRY RUN BUY) {$usdtAmount} USDT");
                     $telegram->notifyBuy($bot->symbol, $usdtAmount, $price, true);
                     continue;
                 }
 
+                BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'BUY', $price, $lastRsi, $lastEma, $decisionReason);
                 $this->warn("РЕАЛЬНАЯ ПОКУПКА ВЫПОЛНЯЕТСЯ (REAL BUY EXECUTING) ({$usdtAmount} USDT)");
 
                 // Уведомление в Telegram
@@ -566,6 +580,7 @@ class RunTradingBotsCommand extends Command
                     ->first();
 
                 if (! $buy) {
+                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'no_open_buy');
                     $this->line('Нет открытой BUY позиции — пропуск SELL (No open BUY position — skip SELL)');
                     $telegram->notifySkip('SELL', 'Нет открытой BUY позиции (No open BUY position)');
                     continue;
@@ -579,6 +594,7 @@ class RunTradingBotsCommand extends Command
                     ->exists();
 
                 if ($hasPendingSell) {
+                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'sell_in_progress');
                     $this->line('SELL уже выполняется — пропуск (SELL already in progress — skip)');
                     $telegram->notifySkip('SELL', 'SELL уже выполняется (SELL already in progress)');
                     continue;
@@ -598,6 +614,7 @@ class RunTradingBotsCommand extends Command
                 }
 
                 if ($btcQty <= 0) {
+                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'no_balance');
                     $this->line('Баланс недоступен — пропуск SELL (No balance available — skip SELL)');
                     $telegram->notifySkip('SELL', 'Баланс недоступен (No balance available)');
                     continue;
@@ -606,6 +623,7 @@ class RunTradingBotsCommand extends Command
                 // Проверка минимального размера ордера для SELL
                 [$passesMin, $minQty] = $positionManager->passesMinSell($bot->symbol, $btcQty);
                 if (!$passesMin) {
+                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'quantity_too_small');
                     $this->warn("Количество {$btcQty} {$baseCoin} меньше минимума {$minQty} {$baseCoin} — пропуск SELL (Quantity {$btcQty} {$baseCoin} is less than minimum {$minQty} {$baseCoin} — skip SELL)");
                     $telegram->notifySkip('SELL', "Количество слишком мало (Quantity too small: {$btcQty} < {$minQty})");
                     continue;
@@ -613,11 +631,13 @@ class RunTradingBotsCommand extends Command
 
                 // Проверка dry_run для SELL
                 if (! config('trading.real_trading') || $bot->dry_run) {
+                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SELL', $price, $lastRsi, $lastEma, 'dry_run');
                     $this->warn("ТЕСТОВЫЙ РЕЖИМ SELL (DRY RUN SELL) {$btcQty} {$baseCoin}");
                     $telegram->notifySell($bot->symbol, $btcQty, $price, true);
                     continue;
                 }
 
+                BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SELL', $price, $lastRsi, $lastEma, $decisionReason);
                 $this->warn("РЕАЛЬНАЯ ПРОДАЖА ВЫПОЛНЯЕТСЯ (REAL SELL EXECUTING) ({$btcQty} {$baseCoin})");
 
                 // Уведомление в Telegram
@@ -793,6 +813,7 @@ class RunTradingBotsCommand extends Command
 
             // HOLD сигнал - No action taken (только если не было других действий)
             if (!$actionTaken) {
+                BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'HOLD', $price, $lastRsi, $lastEma, $decisionReason ?? '');
                 $this->info('Действий не предпринято (No action taken)');
             }
             

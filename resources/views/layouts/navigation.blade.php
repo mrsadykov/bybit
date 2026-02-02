@@ -27,6 +27,9 @@
                     <x-nav-link :href="route('btc-quote-bots.index')" :active="request()->routeIs('btc-quote-bots.*')">
                         {{ __('btc_quote.title') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('decision-log.index')" :active="request()->routeIs('decision-log.*')">
+                        {{ __('decision_log.title') }}
+                    </x-nav-link>
                 </div>
             </div>
 

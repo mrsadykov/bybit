@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendTelegramMessageJob;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -21,18 +22,39 @@ class TelegramService
     }
 
     /**
-     * Отправить сообщение в Telegram
+     * Отправить сообщение в Telegram (синхронно или в очередь, если включено).
      */
     public function sendMessage(string $message, ?string $parseMode = 'HTML'): bool
     {
-        if (!$this->botToken || !$this->chatId) {
+        if (config('services.telegram.queue')) {
+            SendTelegramMessageJob::dispatch($message, $parseMode, null, null);
+
+            return true;
+        }
+
+        return $this->sendMessageSync($message, $parseMode, null, null);
+    }
+
+    /**
+     * Синхронная отправка в Telegram (используется Job'ом или при отключённой очереди).
+     *
+     * @param  string|null  $chatId  null = основной chat_id из конфига
+     * @param  string|null  $botToken  null = основной bot_token из конфига
+     */
+    public function sendMessageSync(string $message, ?string $parseMode = 'HTML', ?string $chatId = null, ?string $botToken = null): bool
+    {
+        $targetChatId = $chatId ?? $this->chatId;
+        $targetToken = $botToken ?? $this->botToken;
+
+        if (! $targetToken || ! $targetChatId) {
             Log::warning('Telegram not configured: bot_token or chat_id missing');
+
             return false;
         }
 
         try {
-            $response = Http::timeout(10)->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
-                'chat_id' => $this->chatId,
+            $response = Http::timeout(10)->post("https://api.telegram.org/bot{$targetToken}/sendMessage", [
+                'chat_id' => $targetChatId,
                 'text' => $message,
                 'parse_mode' => $parseMode,
             ]);

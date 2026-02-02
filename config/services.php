@@ -52,5 +52,6 @@ return [
         'chat_id' => env('TELEGRAM_CHAT_ID'),
         'health_bot_token' => env('TELEGRAM_HEALTH_BOT_TOKEN'),
         'health_chat_id' => env('TELEGRAM_HEALTH_CHAT_ID'),
+        'queue' => env('TELEGRAM_QUEUE', false),
     ],
 ];

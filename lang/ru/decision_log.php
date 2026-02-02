@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'title' => 'Лог решений',
+    'filters' => 'Фильтры',
+    'bot_type' => 'Тип бота',
+    'all_types' => 'Все типы',
+    'spot' => 'Спот',
+    'futures' => 'Фьючерсы',
+    'btc_quote' => 'BTC-quote',
+    'bot' => 'Бот',
+    'all_bots' => 'Все боты',
+    'symbol' => 'Символ',
+    'all_symbols' => 'Все символы',
+    'signal' => 'Сигнал',
+    'all_signals' => 'Все сигналы',
+    'date_from' => 'Дата с',
+    'date_to' => 'Дата по',
+    'date' => 'Дата',
+    'type' => 'Тип',
+    'price' => 'Цена',
+    'reason' => 'Причина',
+    'total_found' => 'Всего найдено',
+    'no_logs' => 'Записей решений не найдено',
+];
