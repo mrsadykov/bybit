@@ -17,9 +17,15 @@ use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
         $user = Auth::user();
+
+        $period = (int) $request->get('period', 30);
+        if (! in_array($period, [7, 30, 90], true)) {
+            $period = 30;
+        }
+        $from = now()->subDays($period)->startOfDay();
 
         // Spot боты
         $bots = TradingBot::where('user_id', $user->id)
@@ -49,25 +55,28 @@ class DashboardController extends Controller
         // Цена BTC для перевода PnL BTC-quote в USDT
         $btcPriceUsdt = $this->getBtcPriceUsdt($user);
 
-        // Сделки: spot
-        $allSpotTrades = Trade::whereIn('trading_bot_id', $userBotIds)->get();
+        // Сделки: spot (за период)
+        $allSpotTrades = Trade::whereIn('trading_bot_id', $userBotIds)->where('created_at', '>=', $from)->get();
         $closedSpot = Trade::whereIn('trading_bot_id', $userBotIds)
             ->whereNotNull('closed_at')
             ->whereNotNull('realized_pnl')
+            ->where('closed_at', '>=', $from)
             ->get();
 
-        // Сделки: фьючерсы
-        $allFuturesTrades = $futuresBotIds->isEmpty() ? collect() : FuturesTrade::whereIn('futures_bot_id', $futuresBotIds)->get();
+        // Сделки: фьючерсы (за период)
+        $allFuturesTrades = $futuresBotIds->isEmpty() ? collect() : FuturesTrade::whereIn('futures_bot_id', $futuresBotIds)->where('created_at', '>=', $from)->get();
         $closedFutures = $futuresBotIds->isEmpty() ? collect() : FuturesTrade::whereIn('futures_bot_id', $futuresBotIds)
             ->whereNotNull('closed_at')
             ->whereNotNull('realized_pnl')
+            ->where('closed_at', '>=', $from)
             ->get();
 
-        // Сделки: BTC-quote
-        $allBtcQuoteTrades = $btcQuoteBotIds->isEmpty() ? collect() : BtcQuoteTrade::whereIn('btc_quote_bot_id', $btcQuoteBotIds)->get();
+        // Сделки: BTC-quote (за период)
+        $allBtcQuoteTrades = $btcQuoteBotIds->isEmpty() ? collect() : BtcQuoteTrade::whereIn('btc_quote_bot_id', $btcQuoteBotIds)->where('created_at', '>=', $from)->get();
         $closedBtcQuote = $btcQuoteBotIds->isEmpty() ? collect() : BtcQuoteTrade::whereIn('btc_quote_bot_id', $btcQuoteBotIds)
             ->whereNotNull('closed_at')
             ->whereNotNull('realized_pnl_btc')
+            ->where('closed_at', '>=', $from)
             ->get();
 
         $totalTrades = $allSpotTrades->count() + $allFuturesTrades->count() + $allBtcQuoteTrades->count();
@@ -132,10 +141,10 @@ class DashboardController extends Controller
             ->get();
         $openPositions = $this->buildOpenPositionsList($openPositionsSpot, $openPositionsFutures, $openPositionsBtcQuote);
 
-        // Данные для графиков (все типы ботов, 30 дней)
-        $chartPnlByDay = $this->getPnlByDayCombined($userBotIds, $futuresBotIds, $btcQuoteBotIds, $btcPriceUsdt, 30);
-        $chartTradesByDay = $this->getTradesCountByDayCombined($userBotIds, $futuresBotIds, $btcQuoteBotIds, 30);
-        $chartCumulativePnL = $this->getCumulativePnLCombined($userBotIds, $futuresBotIds, $btcQuoteBotIds, $btcPriceUsdt, 30);
+        // Данные для графиков (все типы ботов, выбранный период)
+        $chartPnlByDay = $this->getPnlByDayCombined($userBotIds, $futuresBotIds, $btcQuoteBotIds, $btcPriceUsdt, $period);
+        $chartTradesByDay = $this->getTradesCountByDayCombined($userBotIds, $futuresBotIds, $btcQuoteBotIds, $period);
+        $chartCumulativePnL = $this->getCumulativePnLCombined($userBotIds, $futuresBotIds, $btcQuoteBotIds, $btcPriceUsdt, $period);
 
         // Получаем сохраненную статистику из БД
         // Приоритет: сначала за все время (days_period = 0), потом за 30 дней
@@ -212,6 +221,7 @@ class DashboardController extends Controller
         }
         
         return view('dashboard', compact(
+            'period',
             'bots',
             'totalBots',
             'activeBots',

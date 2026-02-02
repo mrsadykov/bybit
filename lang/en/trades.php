@@ -3,6 +3,7 @@
 return [
     'title' => 'Trades',
     'back_to_dashboard' => 'Back to Dashboard',
+    'export_csv' => 'Export CSV',
     'filters' => 'Filters',
     'reset_all' => 'Reset All',
     'bot' => 'Bot',

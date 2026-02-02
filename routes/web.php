@@ -24,6 +24,7 @@ Route::middleware('auth')->group(function () {
     
     // Trades routes
     Route::get('/trades', [TradesController::class, 'index'])->name('trades.index');
+    Route::get('/trades/export', [TradesController::class, 'export'])->name('trades.export');
 
     // Decision log (логи решений ботов)
     Route::get('/decision-log', [\App\Http\Controllers\BotDecisionLogController::class, 'index'])->name('decision-log.index');

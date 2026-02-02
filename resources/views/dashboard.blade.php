@@ -50,13 +50,23 @@
             </div>
             @endif
 
+            <!-- Фильтр периода -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-4">
+                <div class="p-3 flex flex-wrap items-center gap-2">
+                    <span class="text-sm font-medium text-gray-700">{{ __('dashboard.period') }}:</span>
+                    <a href="{{ route('dashboard', ['period' => 7]) }}" class="px-3 py-1.5 rounded-md text-sm font-medium {{ ($period ?? 30) == 7 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">7 {{ __('dashboard.days') }}</a>
+                    <a href="{{ route('dashboard', ['period' => 30]) }}" class="px-3 py-1.5 rounded-md text-sm font-medium {{ ($period ?? 30) == 30 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">30 {{ __('dashboard.days') }}</a>
+                    <a href="{{ route('dashboard', ['period' => 90]) }}" class="px-3 py-1.5 rounded-md text-sm font-medium {{ ($period ?? 30) == 90 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200' }}">90 {{ __('dashboard.days') }}</a>
+                </div>
+            </div>
+
             <!-- Основные метрики -->
             <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mb-6">
                 <div class="p-6">
                     <div class="flex items-center space-x-2 mb-4">
                         <span class="text-2xl">📊</span>
                         <h3 class="text-xl font-bold text-gray-900">{{ __('dashboard.main_metrics') }}</h3>
-                        <span class="text-sm text-gray-500">({{ __('dashboard.all_bots') }})</span>
+                        <span class="text-sm text-gray-500">({{ __('dashboard.all_bots') }}, {{ $period ?? 30 }} {{ __('dashboard.days') }})</span>
                     </div>
                     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                         <div class="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
@@ -140,7 +150,7 @@
                     <div class="flex items-center space-x-2 mb-4">
                         <span class="text-2xl">📈</span>
                         <h3 class="text-xl font-bold text-gray-900">{{ __('dashboard.charts') }}</h3>
-                        <span class="text-sm text-gray-500">({{ __('dashboard.last_days', ['days' => 30]) }})</span>
+                        <span class="text-sm text-gray-500">({{ __('dashboard.last_days', ['days' => $period ?? 30]) }})</span>
                     </div>
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div class="lg:col-span-2">

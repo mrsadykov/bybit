@@ -3,6 +3,7 @@
 return [
     'title' => 'Сделки',
     'back_to_dashboard' => 'Назад к дашборду',
+    'export_csv' => 'Экспорт CSV',
     'filters' => 'Фильтры',
     'reset_all' => 'Сбросить все',
     'bot' => 'Бот',
