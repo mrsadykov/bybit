@@ -33,6 +33,8 @@ Route::middleware('auth')->group(function () {
     Route::resource('bots', \App\Http\Controllers\BotController::class);
     Route::post('bots/{bot}/toggle-active', [\App\Http\Controllers\BotController::class, 'toggleActive'])
         ->name('bots.toggle-active');
+    Route::post('bots/{bot}/reset-risk-baseline', [\App\Http\Controllers\BotController::class, 'resetRiskBaseline'])
+        ->name('bots.reset-risk-baseline');
 
     // Futures Bots routes (OKX perpetual swap)
     Route::resource('futures-bots', \App\Http\Controllers\FuturesBotController::class)->parameters(['futures-bots' => 'futures_bot']);

@@ -204,6 +204,21 @@
                             @enderror
                         </div>
 
+                        <!-- Max Losing Streak -->
+                        <div class="mb-4">
+                            <label for="max_losing_streak" class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ __('bots.max_losing_streak') }}
+                            </label>
+                            <input type="number" name="max_losing_streak" id="max_losing_streak"
+                                value="{{ old('max_losing_streak', $bot->max_losing_streak) }}" step="1" min="1" max="20"
+                                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                placeholder="{{ __('bots.max_losing_streak_placeholder') }}">
+                            <p class="mt-1 text-sm text-gray-500">{{ __('bots.max_losing_streak_help') }}</p>
+                            @error('max_losing_streak')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
                         <!-- Use MACD filter -->
                         <div class="mb-4">
                             <label class="flex items-center">

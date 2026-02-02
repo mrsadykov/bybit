@@ -104,6 +104,13 @@ return [
     'max_drawdown_percent' => 'Max drawdown (%)',
     'max_drawdown_placeholder' => 'Empty = no limit',
     'max_drawdown_help' => 'When drawdown from cumulative PnL peak exceeds this, trading for this bot is paused (clear manually or change limit).',
+    'max_losing_streak' => 'Max losing streak',
+    'max_losing_streak_placeholder' => 'Empty = disabled',
+    'max_losing_streak_help' => 'After N consecutive losing trades the bot is skipped until baseline reset or next day.',
+    'reset_risk_baseline' => 'Reset risk baseline',
+    'reset_risk_baseline_confirm' => 'Reset drawdown and losing streak baseline? Only trades after now will count.',
+    'risk_baseline_reset' => 'Risk baseline reset. Only trades after now will count for drawdown and losing streak.',
+    'risk_drawdown_reset_at' => 'Risk baseline reset at',
 
     // MACD (priority 3)
     'use_macd_filter' => 'MACD filter (RSI+EMA+MACD)',

@@ -50,6 +50,7 @@ class BotController extends Controller
             'take_profit_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'max_daily_loss_usdt' => ['nullable', 'numeric', 'min:0'],
             'max_drawdown_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'max_losing_streak' => ['nullable', 'integer', 'min:1', 'max:20'],
             'use_macd_filter' => ['nullable', 'boolean'],
             'rsi_period' => ['nullable', 'integer', 'min:2', 'max:100'],
             'ema_period' => ['nullable', 'integer', 'min:2', 'max:200'],
@@ -79,6 +80,7 @@ class BotController extends Controller
             'take_profit_percent' => $validated['take_profit_percent'] ?? null,
             'max_daily_loss_usdt' => isset($validated['max_daily_loss_usdt']) && $validated['max_daily_loss_usdt'] !== '' ? (float) $validated['max_daily_loss_usdt'] : null,
             'max_drawdown_percent' => isset($validated['max_drawdown_percent']) && $validated['max_drawdown_percent'] !== '' ? (float) $validated['max_drawdown_percent'] : null,
+            'max_losing_streak' => isset($validated['max_losing_streak']) && $validated['max_losing_streak'] !== '' ? (int) $validated['max_losing_streak'] : null,
             'use_macd_filter' => !empty($validated['use_macd_filter']),
             'rsi_period' => $validated['rsi_period'] ?? null,
             'ema_period' => $validated['ema_period'] ?? null,
@@ -234,6 +236,7 @@ class BotController extends Controller
             'take_profit_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'max_daily_loss_usdt' => ['nullable', 'numeric', 'min:0'],
             'max_drawdown_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'max_losing_streak' => ['nullable', 'integer', 'min:1', 'max:20'],
             'use_macd_filter' => ['nullable', 'boolean'],
             'rsi_period' => ['nullable', 'integer', 'min:2', 'max:100'],
             'ema_period' => ['nullable', 'integer', 'min:2', 'max:200'],
@@ -265,6 +268,7 @@ class BotController extends Controller
             'take_profit_percent' => $validated['take_profit_percent'] ?? null,
             'max_daily_loss_usdt' => isset($validated['max_daily_loss_usdt']) && $validated['max_daily_loss_usdt'] !== '' ? (float) $validated['max_daily_loss_usdt'] : null,
             'max_drawdown_percent' => isset($validated['max_drawdown_percent']) && $validated['max_drawdown_percent'] !== '' ? (float) $validated['max_drawdown_percent'] : null,
+            'max_losing_streak' => isset($validated['max_losing_streak']) && $validated['max_losing_streak'] !== '' ? (int) $validated['max_losing_streak'] : null,
             'use_macd_filter' => !empty($validated['use_macd_filter']),
             'rsi_period' => $validated['rsi_period'] ?? null,
             'ema_period' => $validated['ema_period'] ?? null,
@@ -310,6 +314,21 @@ class BotController extends Controller
 
         return redirect()->back()
             ->with('success', $bot->is_active ? __('bots.bot_activated') : __('bots.bot_deactivated'));
+    }
+
+    /**
+     * Сброс базиса просадки и серии убытков: учитываются только сделки после этой даты.
+     */
+    public function resetRiskBaseline(TradingBot $bot)
+    {
+        if ($bot->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        $bot->update(['risk_drawdown_reset_at' => now()]);
+
+        return redirect()->back()
+            ->with('success', __('bots.risk_baseline_reset'));
     }
 
     protected function calculateMaxDrawdown($closedPositions): float

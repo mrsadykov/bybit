@@ -58,11 +58,11 @@ class RunTradingBotsCommand extends Command
             if ($this->isBotPausedByRiskLimits($bot, $telegram)) {
                 BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', null, null, null, 'risk_limit');
                 $this->warn("Бот {$bot->symbol} пропущен: достигнут лимит риска (Bot skipped: risk limit reached)");
-                $skipNotifyKey = 'risk_skip_notify_' . $bot->id . '_' . now()->format('Y-m-d-H');
+                $skipNotifyKey = 'risk_skip_notify_' . $bot->id . '_' . now()->format('Y-m-d');
                 if (!Cache::has($skipNotifyKey)) {
                     try {
                         $telegram->notifyBotSkippedRiskLimit($bot->symbol);
-                        Cache::put($skipNotifyKey, true, now()->addHour());
+                        Cache::put($skipNotifyKey, true, now()->endOfDay());
                     } catch (\Throwable $e) {
                         logger()->warning('Telegram bot skipped risk notify failed', ['bot_id' => $bot->id, 'error' => $e->getMessage()]);
                     }
@@ -965,14 +965,17 @@ class RunTradingBotsCommand extends Command
             }
         }
 
-        // Лимит просадки (по этому боту): от пика кумулятивного PnL
+        // Лимит просадки (по этому боту): от пика кумулятивного PnL (с учётом сброса базиса)
         $maxDrawdownPct = $bot->max_drawdown_percent !== null ? (float) $bot->max_drawdown_percent : null;
         if ($maxDrawdownPct !== null && $maxDrawdownPct > 0) {
-            $closed = Trade::where('trading_bot_id', $bot->id)
+            $drawdownQuery = Trade::where('trading_bot_id', $bot->id)
                 ->whereNotNull('closed_at')
                 ->whereNotNull('realized_pnl')
-                ->orderBy('closed_at')
-                ->get();
+                ->orderBy('closed_at');
+            if ($bot->risk_drawdown_reset_at !== null) {
+                $drawdownQuery->where('closed_at', '>=', $bot->risk_drawdown_reset_at);
+            }
+            $closed = $drawdownQuery->get();
             $cum = 0;
             $peak = 0;
             foreach ($closed as $t) {
@@ -995,6 +998,31 @@ class RunTradingBotsCommand extends Command
                     }
                     return true;
                 }
+            }
+        }
+
+        // Лимит серии убытков (по этому боту): при N убыточных сделках подряд — пропуск до сброса или следующего дня
+        $maxLosingStreak = $bot->max_losing_streak !== null ? (int) $bot->max_losing_streak : null;
+        if ($maxLosingStreak !== null && $maxLosingStreak > 0) {
+            $streakQuery = Trade::where('trading_bot_id', $bot->id)
+                ->whereNotNull('closed_at')
+                ->whereNotNull('realized_pnl')
+                ->orderByDesc('closed_at')
+                ->limit(50);
+            if ($bot->risk_drawdown_reset_at !== null) {
+                $streakQuery->where('closed_at', '>=', $bot->risk_drawdown_reset_at);
+            }
+            $lastTrades = $streakQuery->get();
+            $losingStreak = 0;
+            foreach ($lastTrades as $t) {
+                if ((float) $t->realized_pnl < 0) {
+                    $losingStreak++;
+                } else {
+                    break;
+                }
+            }
+            if ($losingStreak >= $maxLosingStreak) {
+                return true;
             }
         }
 
