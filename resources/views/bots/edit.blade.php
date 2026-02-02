@@ -6,7 +6,7 @@
             </h2>
             <form action="{{ route('bots.reset-risk-baseline', $bot) }}" method="POST" class="shrink-0" onsubmit="return confirm('{{ __('bots.reset_risk_baseline_confirm') }}');">
                 @csrf
-                <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded text-sm whitespace-nowrap">
+                <button type="submit" class="bg-amber-100 hover:bg-amber-200 text-black font-bold py-2 px-4 rounded text-sm whitespace-nowrap border-2 border-amber-600">
                     {{ __('bots.reset_risk_baseline_short') }}
                 </button>
             </form>

@@ -22,3 +22,6 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# SQL dumps in project root (move to database/dumps/)
+/*.sql
