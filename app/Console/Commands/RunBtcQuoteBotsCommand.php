@@ -7,6 +7,7 @@ use App\Models\BtcQuoteBot;
 use App\Models\BtcQuoteTrade;
 use App\Services\Exchanges\ExchangeServiceFactory;
 use App\Services\TelegramService;
+use App\Support\RetryHelper;
 use App\Trading\Indicators\EmaIndicator;
 use App\Trading\Indicators\RsiIndicator;
 use App\Trading\Strategies\RsiEmaStrategy;
@@ -45,6 +46,7 @@ class RunBtcQuoteBotsCommand extends Command
         $telegram->notifyBtcQuoteRunStart($bots->count());
 
         foreach ($bots as $bot) {
+            try {
             $this->line(str_repeat('-', 40));
             $this->info("Бот за BTC #{$bot->id}: {$bot->symbol}");
             $this->line("Размер позиции (Position size): {$bot->position_size_btc} BTC");
@@ -67,18 +69,20 @@ class RunBtcQuoteBotsCommand extends Command
             }
 
             try {
-                $priceBtc = $service->getPrice($bot->symbol);
+                $priceBtc = RetryHelper::retry(fn () => $service->getPrice($bot->symbol), 3, 1000);
             } catch (\Throwable $e) {
                 $this->error('Ошибка получения цены: ' . $e->getMessage());
+                TelegramService::notifyBotErrorOnce('btc_quote', $bot->symbol, $e->getMessage(), $bot->id);
                 continue;
             }
 
             $this->line("Цена (Price): {$priceBtc} BTC");
 
             try {
-                $candles = $service->getCandles($bot->symbol, $bot->timeframe, 100);
+                $candles = RetryHelper::retry(fn () => $service->getCandles($bot->symbol, $bot->timeframe, 100), 3, 1000);
             } catch (\Throwable $e) {
                 $this->error('Ошибка получения свечей: ' . $e->getMessage());
+                TelegramService::notifyBotErrorOnce('btc_quote', $bot->symbol, $e->getMessage(), $bot->id);
                 continue;
             }
 
@@ -190,6 +194,11 @@ class RunBtcQuoteBotsCommand extends Command
                 }
             } else {
                 BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'HOLD', $priceBtc, $lastRsi, $lastEma, $signal === 'SELL' ? 'no_position' : 'strategy_hold');
+            }
+            } catch (\Throwable $e) {
+                logger()->error('btc-quote:run bot failed', ['bot_id' => $bot->id, 'symbol' => $bot->symbol, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+                TelegramService::notifyBotErrorOnce('btc_quote', $bot->symbol, $e->getMessage(), $bot->id);
+                $this->error('Бот за BTC ' . $bot->symbol . ' ошибка: ' . $e->getMessage());
             }
         }
 

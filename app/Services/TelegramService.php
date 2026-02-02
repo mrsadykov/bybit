@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Jobs\SendTelegramMessageJob;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -514,5 +515,40 @@ class TelegramService
         }
 
         return $this->sendMessageSync($message);
+    }
+
+    /**
+     * Алерт сбоя бота (таймаут/ошибка API). Отправляет в health-чат или основной чат.
+     */
+    public function notifyBotError(string $botType, string $symbol, string $errorMessage): bool
+    {
+        $message = "⚠️ <b>Ошибка бота (Bot error)</b>\n\n";
+        $message .= "Тип (Type): {$botType}\n";
+        $message .= "Символ (Symbol): {$symbol}\n";
+        $message .= "Ошибка (Error): " . \Illuminate\Support\Str::limit($errorMessage, 200) . "\n\n";
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+
+        if (config('services.telegram.health_chat_id')) {
+            return $this->sendToHealthChat($message);
+        }
+
+        return $this->sendMessageSync($message);
+    }
+
+    /**
+     * Отправить алерт об ошибке бота не чаще раза в час по одному боту (по cache key).
+     */
+    public static function notifyBotErrorOnce(string $botType, string $symbol, string $errorMessage, int $botId): void
+    {
+        $cacheKey = 'bot_error_alert_' . $botType . '_' . $botId . '_' . now()->format('Y-m-d-H');
+        if (Cache::has($cacheKey)) {
+            return;
+        }
+        try {
+            (new self())->notifyBotError($botType, $symbol, $errorMessage);
+            Cache::put($cacheKey, true, now()->addHour());
+        } catch (\Throwable $e) {
+            Log::warning('Telegram bot error alert failed', ['bot_id' => $botId, 'error' => $e->getMessage()]);
+        }
     }
 }

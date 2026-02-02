@@ -7,6 +7,7 @@ use App\Models\FuturesBot;
 use App\Models\FuturesTrade;
 use App\Services\Exchanges\OKX\OKXFuturesService;
 use App\Services\TelegramService;
+use App\Support\RetryHelper;
 use App\Trading\Indicators\EmaIndicator;
 use App\Trading\Indicators\RsiIndicator;
 use App\Trading\Strategies\RsiEmaStrategy;
@@ -45,6 +46,7 @@ class RunFuturesBotsCommand extends Command
         $telegram->notifyFuturesRunStart($bots->count());
 
         foreach ($bots as $bot) {
+            try {
             $this->line(str_repeat('-', 40));
             $this->info("Фьючерсный бот #{$bot->id}: {$bot->symbol}");
             $this->line("Плечо (Leverage): {$bot->leverage}x, Размер (Position USDT): {$bot->position_size_usdt}");
@@ -67,18 +69,20 @@ class RunFuturesBotsCommand extends Command
             }
 
             try {
-                $price = $service->getPrice($bot->symbol);
+                $price = RetryHelper::retry(fn () => $service->getPrice($bot->symbol), 3, 1000);
             } catch (\Throwable $e) {
                 $this->error('Ошибка получения цены: ' . $e->getMessage());
+                TelegramService::notifyBotErrorOnce('futures', $bot->symbol, $e->getMessage(), $bot->id);
                 continue;
             }
 
             $this->line("Цена (Price): {$price}");
 
             try {
-                $candles = $service->getCandles($bot->symbol, $bot->timeframe, 100);
+                $candles = RetryHelper::retry(fn () => $service->getCandles($bot->symbol, $bot->timeframe, 100), 3, 1000);
             } catch (\Throwable $e) {
                 $this->error('Ошибка получения свечей: ' . $e->getMessage());
+                TelegramService::notifyBotErrorOnce('futures', $bot->symbol, $e->getMessage(), $bot->id);
                 continue;
             }
 
@@ -201,6 +205,11 @@ class RunFuturesBotsCommand extends Command
             } else {
                 // HOLD или SELL без позиции
                 BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'HOLD', $price, $lastRsi, $lastEma, $signal === 'SELL' ? 'no_position' : 'strategy_hold');
+            }
+            } catch (\Throwable $e) {
+                logger()->error('futures:run bot failed', ['bot_id' => $bot->id, 'symbol' => $bot->symbol, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+                TelegramService::notifyBotErrorOnce('futures', $bot->symbol, $e->getMessage(), $bot->id);
+                $this->error('Фьючерсный бот ' . $bot->symbol . ' ошибка: ' . $e->getMessage());
             }
         }
 

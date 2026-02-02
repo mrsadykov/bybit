@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\BotDecisionLog;
 use App\Models\Trade;
+use App\Support\RetryHelper;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use App\Models\TradingBot;
@@ -38,7 +39,7 @@ class RunTradingBotsCommand extends Command
         $telegram->notifyBotRunStart($bots->count());
 
         foreach ($bots as $bot) {
-
+            try {
             $this->line(str_repeat('-', 30));
             $this->info("Бот #{$bot->id} (Bot #{$bot->id})");
             $this->line("Символ (Symbol): {$bot->symbol}");
@@ -75,9 +76,10 @@ class RunTradingBotsCommand extends Command
             |--------------------------------------------------------------------------
             */
             try {
-                $price = $exchangeService->getPrice($bot->symbol);
+                $price = RetryHelper::retry(fn () => $exchangeService->getPrice($bot->symbol), 3, 1000);
             } catch (\Throwable $e) {
                 $this->error('Ошибка получения цены (Price error): ' . $e->getMessage());
+                TelegramService::notifyBotErrorOnce('spot', $bot->symbol, $e->getMessage(), $bot->id);
                 continue;
             }
 
@@ -89,9 +91,10 @@ class RunTradingBotsCommand extends Command
             |--------------------------------------------------------------------------
             */
             try {
-                $candles = $exchangeService->getCandles($bot->symbol, $bot->timeframe, 100);
+                $candles = RetryHelper::retry(fn () => $exchangeService->getCandles($bot->symbol, $bot->timeframe, 100), 3, 1000);
             } catch (\Throwable $e) {
                 $this->error('Ошибка получения свечей (Candles error): ' . $e->getMessage());
+                TelegramService::notifyBotErrorOnce('spot', $bot->symbol, $e->getMessage(), $bot->id);
                 continue;
             }
 
@@ -840,6 +843,11 @@ class RunTradingBotsCommand extends Command
                 ]);
                 $this->error('Ошибка отправки HOLD уведомления (HOLD notification error): ' . $e->getMessage());
             }
+            } catch (\Throwable $e) {
+                logger()->error('bots:run bot failed', ['bot_id' => $bot->id, 'symbol' => $bot->symbol, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+                TelegramService::notifyBotErrorOnce('spot', $bot->symbol, $e->getMessage(), $bot->id);
+                $this->error('Бот ' . $bot->symbol . ' ошибка: ' . $e->getMessage());
+            }
         }
 
         // Алерты по лимитам (если заданы в config)
@@ -1023,4 +1031,5 @@ class RunTradingBotsCommand extends Command
             return !empty($reasons) ? implode('; ', $reasons) : "Нет четкого сигнала";
         }
     }
+
 }
