@@ -26,6 +26,7 @@ class RunFuturesBotsCommand extends Command
     {
         if (! config('futures.enabled', true)) {
             $this->warn('Фьючерсные боты отключены (Futures bots disabled)');
+            Cache::put('health_last_futures_run', now()->timestamp, now()->addDay());
             return self::SUCCESS;
         }
 
@@ -36,6 +37,7 @@ class RunFuturesBotsCommand extends Command
 
         if ($bots->isEmpty()) {
             $this->warn('Активных фьючерсных ботов не найдено (No active futures bots found)');
+            Cache::put('health_last_futures_run', now()->timestamp, now()->addDay());
             return self::SUCCESS;
         }
 
@@ -224,6 +226,7 @@ class RunFuturesBotsCommand extends Command
             }
         }
 
+        Cache::put('health_last_futures_run', now()->timestamp, now()->addDay());
         $this->info('Фьючерсные боты завершены (Futures run finished).');
         return self::SUCCESS;
     }

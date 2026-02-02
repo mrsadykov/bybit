@@ -20,3 +20,6 @@ Schedule::command('stats:analyze --days=30')->dailyAt('00:00')->withoutOverlappi
 
 Schedule::command('futures:run')->everyFiveMinutes();
 Schedule::command('btc-quote:run')->everyFiveMinutes();
+
+// Health check: OKX API, Telegram, последний запуск ботов; при сбое — алерт в Telegram
+Schedule::command('health:check')->everyFifteenMinutes();

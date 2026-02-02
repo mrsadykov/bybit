@@ -26,6 +26,7 @@ class RunBtcQuoteBotsCommand extends Command
     {
         if (! config('btc_quote.enabled', true)) {
             $this->warn('Боты за BTC отключены (BTC-quote bots disabled)');
+            Cache::put('health_last_btc_quote_run', now()->timestamp, now()->addDay());
             return self::SUCCESS;
         }
 
@@ -36,6 +37,7 @@ class RunBtcQuoteBotsCommand extends Command
 
         if ($bots->isEmpty()) {
             $this->warn('Активных ботов за BTC не найдено (No active BTC-quote bots found)');
+            Cache::put('health_last_btc_quote_run', now()->timestamp, now()->addDay());
             return self::SUCCESS;
         }
 
@@ -213,6 +215,7 @@ class RunBtcQuoteBotsCommand extends Command
             }
         }
 
+        Cache::put('health_last_btc_quote_run', now()->timestamp, now()->addDay());
         $this->info('Боты за BTC завершены (BTC-quote run finished).');
         return self::SUCCESS;
     }

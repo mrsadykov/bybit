@@ -498,4 +498,21 @@ class TelegramService
 
         return $this->sendToHealthChat($message);
     }
+
+    /**
+     * Алерт проверки здоровья системы (health-check).
+     * Отправляет в health-чат, если настроен, иначе в основной чат.
+     */
+    public function notifyHealthAlert(string $title, string $details): bool
+    {
+        $message = "⚠️ <b>HEALTH CHECK: {$title}</b>\n\n";
+        $message .= $details . "\n\n";
+        $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+
+        if (config('services.telegram.health_chat_id')) {
+            return $this->sendToHealthChat($message);
+        }
+
+        return $this->sendMessageSync($message);
+    }
 }

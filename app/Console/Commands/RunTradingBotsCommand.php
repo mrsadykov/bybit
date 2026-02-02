@@ -29,6 +29,7 @@ class RunTradingBotsCommand extends Command
 
         if ($bots->isEmpty()) {
             $this->warn('Активных ботов не найдено (No active bots found)');
+            Cache::put('health_last_bots_run', now()->timestamp, now()->addDay());
             return self::SUCCESS;
         }
 
@@ -844,6 +845,7 @@ class RunTradingBotsCommand extends Command
         // Алерты по лимитам (если заданы в config)
         $this->checkTradingAlerts($bots);
 
+        Cache::put('health_last_bots_run', now()->timestamp, now()->addDay());
         $this->info('Все боты обработаны (All bots processed).');
         return self::SUCCESS;
     }
