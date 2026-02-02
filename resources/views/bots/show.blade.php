@@ -4,17 +4,17 @@
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">
                 {{ __('bots.bot_number', ['id' => $bot->id]) }} - {{ $bot->symbol }}
             </h2>
-            <div class="flex gap-2 items-center flex-wrap">
-                <a href="{{ route('bots.edit', $bot) }}" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded text-sm">
+            <div class="flex flex-wrap items-center gap-2 min-w-0">
+                <a href="{{ route('bots.edit', $bot) }}" class="shrink-0 bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded text-sm whitespace-nowrap">
                     {{ __('bots.edit') }}
                 </a>
-                <form action="{{ route('bots.reset-risk-baseline', $bot) }}" method="POST" class="inline" onsubmit="return confirm('{{ __('bots.reset_risk_baseline_confirm') }}');">
+                <form action="{{ route('bots.reset-risk-baseline', $bot) }}" method="POST" class="shrink-0 inline" onsubmit="return confirm('{{ __('bots.reset_risk_baseline_confirm') }}');">
                     @csrf
-                    <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded text-sm">
-                        {{ __('bots.reset_risk_baseline') }}
+                    <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded text-sm whitespace-nowrap">
+                        {{ __('bots.reset_risk_baseline_short') }}
                     </button>
                 </form>
-                <a href="{{ route('bots.index') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm">
+                <a href="{{ route('bots.index') }}" class="shrink-0 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm whitespace-nowrap">
                     {{ __('bots.back_to_list') }}
                 </a>
             </div>

@@ -1,13 +1,13 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex justify-between items-center flex-wrap gap-2">
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+        <div class="flex flex-wrap items-center gap-3 min-w-0">
+            <h2 class="font-semibold text-xl text-gray-800 leading-tight shrink-0">
                 {{ __('bots.edit_bot') }} #{{ $bot->id }}
             </h2>
-            <form action="{{ route('bots.reset-risk-baseline', $bot) }}" method="POST" class="inline" onsubmit="return confirm('{{ __('bots.reset_risk_baseline_confirm') }}');">
+            <form action="{{ route('bots.reset-risk-baseline', $bot) }}" method="POST" class="shrink-0" onsubmit="return confirm('{{ __('bots.reset_risk_baseline_confirm') }}');">
                 @csrf
-                <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded text-sm">
-                    {{ __('bots.reset_risk_baseline') }}
+                <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded text-sm whitespace-nowrap">
+                    {{ __('bots.reset_risk_baseline_short') }}
                 </button>
             </form>
         </div>

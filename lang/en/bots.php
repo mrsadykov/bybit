@@ -108,6 +108,7 @@ return [
     'max_losing_streak_placeholder' => 'Empty = disabled',
     'max_losing_streak_help' => 'After N consecutive losing trades the bot is skipped until baseline reset or next day.',
     'reset_risk_baseline' => 'Reset risk baseline',
+    'reset_risk_baseline_short' => 'Reset risk',
     'reset_risk_baseline_confirm' => 'Reset drawdown and losing streak baseline? Only trades after now will count.',
     'risk_baseline_reset' => 'Risk baseline reset. Only trades after now will count for drawdown and losing streak.',
     'risk_drawdown_reset_at' => 'Risk baseline reset at',
