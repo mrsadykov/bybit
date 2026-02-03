@@ -25,3 +25,6 @@ Thumbs.db
 
 # SQL dumps in project root (move to database/dumps/)
 /*.sql
+
+# OKX exports in project root (move to storage/okx-exports/)
+/*.csv

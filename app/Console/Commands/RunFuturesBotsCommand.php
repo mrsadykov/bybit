@@ -108,7 +108,13 @@ class RunFuturesBotsCommand extends Command
             $lastEma = is_array($ema = EmaIndicator::calculate($closes, $emaPeriod)) ? end($ema) : $ema;
             $this->line("RSI: " . round($lastRsi, 2) . ", EMA: " . round($lastEma, 2) . ", Сигнал (Signal): {$signal}");
 
-            $hasPosition = $service->hasLongPosition($bot->symbol);
+            try {
+                $hasPosition = RetryHelper::retry(fn () => $service->hasLongPosition($bot->symbol), 3, 1000);
+            } catch (\Throwable $e) {
+                $this->error('Ошибка получения позиций: ' . $e->getMessage());
+                TelegramService::notifyBotErrorOnce('futures', $bot->symbol, $e->getMessage(), $bot->id);
+                continue;
+            }
 
             if ($signal === 'BUY') {
                 if ($hasPosition) {
@@ -117,7 +123,13 @@ class RunFuturesBotsCommand extends Command
                     continue;
                 }
 
-                $balance = $service->getBalance('USDT');
+                try {
+                    $balance = RetryHelper::retry(fn () => $service->getBalance('USDT'), 3, 1000);
+                } catch (\Throwable $e) {
+                    $this->error('Ошибка получения баланса: ' . $e->getMessage());
+                    TelegramService::notifyBotErrorOnce('futures', $bot->symbol, $e->getMessage(), $bot->id);
+                    continue;
+                }
                 $marginRequired = (float) $bot->position_size_usdt;
                 if ($balance < $marginRequired && ! $bot->dry_run) {
                     BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'insufficient_margin');
@@ -169,7 +181,13 @@ class RunFuturesBotsCommand extends Command
             }
 
             if ($signal === 'SELL' && $hasPosition) {
-                $posSize = $service->getLongPositionSize($bot->symbol);
+                try {
+                    $posSize = RetryHelper::retry(fn () => $service->getLongPositionSize($bot->symbol), 3, 1000);
+                } catch (\Throwable $e) {
+                    $this->error('Ошибка получения размера позиции: ' . $e->getMessage());
+                    TelegramService::notifyBotErrorOnce('futures', $bot->symbol, $e->getMessage(), $bot->id);
+                    continue;
+                }
                 if ($posSize <= 0) {
                     continue;
                 }

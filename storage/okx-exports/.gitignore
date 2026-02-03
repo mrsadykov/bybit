@@ -1,0 +1,3 @@
+# Выгрузки OKX (Order History, Trade Details) не коммитить
+*.csv
+*.xlsx
