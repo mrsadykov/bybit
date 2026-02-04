@@ -47,6 +47,11 @@ return [
     'trend_filter_ema_period' => env('TRADING_TREND_FILTER_EMA_PERIOD') !== null && env('TRADING_TREND_FILTER_EMA_PERIOD') !== '' ? (int) env('TRADING_TREND_FILTER_EMA_PERIOD') : 50,
     'trend_filter_tolerance_percent' => env('TRADING_TREND_FILTER_TOLERANCE_PERCENT') !== null && env('TRADING_TREND_FILTER_TOLERANCE_PERCENT') !== '' ? (float) env('TRADING_TREND_FILTER_TOLERANCE_PERCENT') : 0,
 
+    // Фильтр по объёму: BUY только если объём последней свечи >= среднего за период (только спот)
+    'volume_filter_enabled' => filter_var(env('TRADING_VOLUME_FILTER_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+    'volume_filter_period' => env('TRADING_VOLUME_FILTER_PERIOD') !== null && env('TRADING_VOLUME_FILTER_PERIOD') !== '' ? (int) env('TRADING_VOLUME_FILTER_PERIOD') : 20,
+    'volume_filter_min_ratio' => env('TRADING_VOLUME_FILTER_MIN_RATIO') !== null && env('TRADING_VOLUME_FILTER_MIN_RATIO') !== '' ? (float) env('TRADING_VOLUME_FILTER_MIN_RATIO') : 1.0,
+
     'bybit' => [
         'env' => env('BYBIT_ENV', 'testnet'), // testnet | production
     ],

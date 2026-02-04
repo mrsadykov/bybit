@@ -186,3 +186,23 @@ TRADING_TREND_FILTER_TOLERANCE_PERCENT=0
 - **TRADING_TREND_FILTER_TOLERANCE_PERCENT=0** — BUY только если цена **выше** длинной EMA. Если задать, например, 0.5 — разрешить цену до 0.5% ниже EMA.
 
 При срабатывании фильтра в логах и в Decision Log будет причина `trend_filter` (BUY пропущен: цена ниже длинной EMA).
+
+---
+
+## 9. Фильтр по объёму (спот)
+
+Разрешать BUY только когда **объём последней свечи не ниже среднего** за выбранный период — меньше входов при слабом объёме (без подтверждения движения).
+
+**В `.env`:**
+
+```env
+TRADING_VOLUME_FILTER_ENABLED=true
+TRADING_VOLUME_FILTER_PERIOD=20
+TRADING_VOLUME_FILTER_MIN_RATIO=1.0
+```
+
+- **TRADING_VOLUME_FILTER_ENABLED=true** — включить фильтр.
+- **TRADING_VOLUME_FILTER_PERIOD=20** — средний объём считается по последним 20 свечам.
+- **TRADING_VOLUME_FILTER_MIN_RATIO=1.0** — BUY только если объём последней свечи **≥** среднего. При значении 1.2 — только если объём не меньше 120% от среднего.
+
+Используется объём из ответа биржи (OKX/Bybit, индекс 5 в свече). При срабатывании в логах и Decision Log будет причина `volume_filter`.

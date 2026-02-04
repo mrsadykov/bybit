@@ -131,10 +131,9 @@ class RunTradingBotsCommand extends Command
                 continue;
             }
 
-            $closes = array_map(
-                fn ($candle) => (float) $candle[4],
-                array_reverse($candleList)
-            );
+            $reversedCandles = array_reverse($candleList);
+            $closes = array_map(fn ($c) => (float) $c[4], $reversedCandles);
+            $volumes = array_map(fn ($c) => (float) ($c[5] ?? 0), $reversedCandles);
 
             /*
             |--------------------------------------------------------------------------
@@ -378,6 +377,21 @@ class RunTradingBotsCommand extends Command
                         }
                     } catch (\Throwable $e) {
                         logger()->warning('Trend filter EMA calculation failed', ['bot_id' => $bot->id, 'error' => $e->getMessage()]);
+                    }
+                }
+
+                // Фильтр по объёму: BUY только если объём последней свечи >= среднего за период
+                $volumeFilterEnabled = config('trading.volume_filter_enabled', false);
+                $volumeFilterPeriod = (int) config('trading.volume_filter_period', 20);
+                $volumeFilterMinRatio = (float) config('trading.volume_filter_min_ratio', 1.0);
+                if ($volumeFilterEnabled && $volumeFilterPeriod > 0 && count($volumes) >= $volumeFilterPeriod) {
+                    $lastVolume = (float) end($volumes);
+                    $recentVolumes = array_slice($volumes, -$volumeFilterPeriod, $volumeFilterPeriod);
+                    $avgVolume = array_sum($recentVolumes) / count($recentVolumes);
+                    if ($avgVolume > 0 && $lastVolume < $avgVolume * $volumeFilterMinRatio) {
+                        BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'volume_filter');
+                        $this->warn("BUY пропущен: объём последней свечи {$lastVolume} ниже среднего {$avgVolume} (×{$volumeFilterMinRatio}) (BUY skipped: volume filter)");
+                        continue;
                     }
                 }
 
