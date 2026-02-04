@@ -38,6 +38,17 @@ class RunTradingBotsCommand extends Command
         $telegram = new TelegramService();
         $telegram->notifyBotRunStart($bots->count());
 
+        // 4. Пауза новых открытий при дневном убытке
+        $pauseThreshold = config('trading.pause_new_opens_daily_loss_usdt');
+        $todayStart = now()->startOfDay();
+        $dailyPnLSpot = $pauseThreshold !== null
+            ? (float) Trade::whereIn('trading_bot_id', $bots->pluck('id'))
+                ->whereNotNull('realized_pnl')
+                ->where('closed_at', '>=', $todayStart)
+                ->sum('realized_pnl')
+            : 0;
+        $pauseNewOpensSpot = $pauseThreshold !== null && $dailyPnLSpot <= -$pauseThreshold;
+
         foreach ($bots as $bot) {
             try {
             $this->line(str_repeat('-', 30));
@@ -155,8 +166,10 @@ class RunTradingBotsCommand extends Command
             | STRATEGY
             |--------------------------------------------------------------------------
             */
-            $rsiBuy = $bot->rsi_buy_threshold !== null ? (float) $bot->rsi_buy_threshold : 40.0;
-            $rsiSell = $bot->rsi_sell_threshold !== null ? (float) $bot->rsi_sell_threshold : 60.0;
+            // 3. Реже торговать: консервативные RSI 35/65 или пороги бота
+            $conservativeRsi = config('trading.conservative_rsi', false);
+            $rsiBuy = $conservativeRsi ? 35.0 : ($bot->rsi_buy_threshold !== null ? (float) $bot->rsi_buy_threshold : 40.0);
+            $rsiSell = $conservativeRsi ? 65.0 : ($bot->rsi_sell_threshold !== null ? (float) $bot->rsi_sell_threshold : 60.0);
             $useMacdFilter = (bool) ($bot->use_macd_filter ?? false);
             $emaTolerancePercent = (float) (config('trading.ema_tolerance_percent', 1));
             $emaToleranceDeepPercent = config('trading.ema_tolerance_deep_percent') !== null ? (float) config('trading.ema_tolerance_deep_percent') : null;
@@ -191,7 +204,11 @@ class RunTradingBotsCommand extends Command
             */
             $actionTaken = false; // Флаг для отслеживания выполненных действий
             
-            if ($netPosition > 0 && ($bot->stop_loss_percent || $bot->take_profit_percent)) {
+            // 2. Стоп-лосс: глобальный override или значение бота
+            $slPercent = config('trading.stop_loss_percent_override') ?? $bot->stop_loss_percent;
+            $tpPercent = $bot->take_profit_percent;
+
+            if ($netPosition > 0 && ($slPercent || $tpPercent)) {
                 // Получаем все открытые BUY позиции
                 $openBuys = Trade::where('trading_bot_id', $bot->id)
                     ->where('side', 'BUY')
@@ -207,16 +224,16 @@ class RunTradingBotsCommand extends Command
                     $reason = '';
 
                     // Проверка Stop-Loss
-                    if ($bot->stop_loss_percent && $priceChange <= -abs($bot->stop_loss_percent)) {
+                    if ($slPercent && $priceChange <= -abs((float) $slPercent)) {
                         $shouldSell = true;
-                        $reason = "STOP-LOSS ({$bot->stop_loss_percent}%)";
+                        $reason = "STOP-LOSS ({$slPercent}%)";
                         $this->warn("🔴 STOP-LOSS сработал! ({$reason}) - Цена упала на " . number_format(abs($priceChange), 2) . "%");
                     }
 
                     // Проверка Take-Profit
-                    if ($bot->take_profit_percent && $priceChange >= $bot->take_profit_percent) {
+                    if ($tpPercent && $priceChange >= (float) $tpPercent) {
                         $shouldSell = true;
-                        $reason = "TAKE-PROFIT ({$bot->take_profit_percent}%)";
+                        $reason = "TAKE-PROFIT ({$tpPercent}%)";
                         $this->warn("🟢 TAKE-PROFIT сработал! ({$reason}) - Цена выросла на " . number_format($priceChange, 2) . "%");
                     }
 
@@ -322,6 +339,24 @@ class RunTradingBotsCommand extends Command
                     continue;
                 }
 
+                // 4. Пауза новых открытий при дневном убытке
+                if ($pauseNewOpensSpot) {
+                    BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'pause_daily_loss');
+                    $this->warn("BUY пропущен: пауза из-за дневного убытка (PnL сегодня: {$dailyPnLSpot} USDT) (BUY skipped: pause due to daily loss)");
+                    continue;
+                }
+
+                // 3. Минимальный интервал между открытиями позиций
+                $minMinutes = config('trading.min_minutes_between_opens');
+                if ($minMinutes !== null && $minMinutes > 0) {
+                    $lastOpen = Trade::where('trading_bot_id', $bot->id)->where('side', 'BUY')->where('status', 'FILLED')->orderByDesc('filled_at')->first();
+                    if ($lastOpen && $lastOpen->filled_at && $lastOpen->filled_at->diffInMinutes(now(), false) < $minMinutes) {
+                        BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'cooldown_opens');
+                        $this->warn("BUY пропущен: кулдаун {$minMinutes} мин после последнего открытия (BUY skipped: cooldown)");
+                        continue;
+                    }
+                }
+
                 // Лимит открытых позиций по всем ботам пользователя
                 $maxOpenTotal = config('trading.max_open_positions_total');
                 if ($maxOpenTotal !== null && (int) $maxOpenTotal > 0) {
@@ -346,7 +381,9 @@ class RunTradingBotsCommand extends Command
                     }
                 }
 
-                $usdtAmount = (float) $bot->position_size;
+                // 1. Множитель размера позиции (снижение риска)
+                $multiplier = (float) (config('trading.position_size_multiplier', 1));
+                $usdtAmount = (float) $bot->position_size * $multiplier;
 
                 if ($usdtAmount <= 0) {
                     BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'invalid_position_size');

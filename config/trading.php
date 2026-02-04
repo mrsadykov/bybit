@@ -9,6 +9,21 @@ return [
     // защита от дурака
     'max_trades_per_bot' => 1,
 
+    // --- Снижение риска (п.1–4) ---
+    // 1. Множитель размера позиции: 0.5 = торговать половинным размером по всем ботам (spot/futures/btc-quote)
+    'position_size_multiplier' => (float) (env('TRADING_POSITION_SIZE_MULTIPLIER', 1)),
+
+    // 2. Глобальный стоп-лосс (%): если задан — используется вместо значения в боте (ужесточение)
+    'stop_loss_percent_override' => env('TRADING_STOP_LOSS_PERCENT_OVERRIDE') !== null && env('TRADING_STOP_LOSS_PERCENT_OVERRIDE') !== '' ? (float) env('TRADING_STOP_LOSS_PERCENT_OVERRIDE') : null,
+
+    // 3. Реже торговать: консервативные RSI 35/65 (если true — подменяют пороги бота только для входа/выхода по сигналу)
+    'conservative_rsi' => env('TRADING_CONSERVATIVE_RSI', false),
+    // Минимальный интервал (минуты) между открытием новых позиций по одному боту
+    'min_minutes_between_opens' => env('TRADING_MIN_MINUTES_BETWEEN_OPENS') !== null && env('TRADING_MIN_MINUTES_BETWEEN_OPENS') !== '' ? (int) env('TRADING_MIN_MINUTES_BETWEEN_OPENS') : null,
+
+    // 4. Пауза новых открытий: при дневном убытке по типу ботов >= N USDT новые BUY не выставляются (SL/TP и закрытие по сигналу работают)
+    'pause_new_opens_daily_loss_usdt' => env('TRADING_PAUSE_NEW_OPENS_DAILY_LOSS_USDT') !== null && env('TRADING_PAUSE_NEW_OPENS_DAILY_LOSS_USDT') !== '' ? (float) env('TRADING_PAUSE_NEW_OPENS_DAILY_LOSS_USDT') : null,
+
     // Алерты в Telegram (опционально): при достижении лимитов отправляется уведомление
     'alert_daily_loss_usdt' => env('TRADING_ALERT_DAILY_LOSS_USDT', null), // например 10 — алерт при дневном убытке >= 10 USDT
     'alert_losing_streak_count' => env('TRADING_ALERT_LOSING_STREAK', null), // например 3 — алерт при 3+ убыточных сделках подряд

@@ -47,6 +47,29 @@ class RunBtcQuoteBotsCommand extends Command
 
         $this->syncPendingBtcQuoteTrades($bots);
 
+        // Пауза новых открытий при дневном убытке (дневной PnL в USDT эквиваленте)
+        $pauseThreshold = config('trading.pause_new_opens_daily_loss_usdt');
+        $todayStart = now()->startOfDay();
+        $dailyPnLBtcQuoteBtc = $pauseThreshold !== null
+            ? (float) BtcQuoteTrade::whereIn('btc_quote_bot_id', $bots->pluck('id'))
+                ->whereNotNull('realized_pnl_btc')
+                ->where('closed_at', '>=', $todayStart)
+                ->sum('realized_pnl_btc')
+            : 0;
+        $btcPriceUsdtForPause = 0;
+        if ($pauseThreshold !== null && $dailyPnLBtcQuoteBtc !== 0.0) {
+            try {
+                $ticker = \Illuminate\Support\Facades\Http::timeout(5)->get('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT');
+                $data = $ticker->json();
+                if (($data['code'] ?? '0') === '0' && ! empty($data['data'][0]['last'])) {
+                    $btcPriceUsdtForPause = (float) $data['data'][0]['last'];
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+        $dailyPnLBtcQuoteUsdt = $btcPriceUsdtForPause > 0 ? $dailyPnLBtcQuoteBtc * $btcPriceUsdtForPause : 0;
+        $pauseNewOpensBtcQuote = $pauseThreshold !== null && $btcPriceUsdtForPause > 0 && $dailyPnLBtcQuoteUsdt <= -$pauseThreshold;
+
         foreach ($bots as $bot) {
             try {
             $this->line(str_repeat('-', 40));
@@ -98,8 +121,9 @@ class RunBtcQuoteBotsCommand extends Command
 
             $rsiPeriod = $bot->rsi_period ?? 17;
             $emaPeriod = $bot->ema_period ?? 10;
-            $rsiBuy = $bot->rsi_buy_threshold !== null ? (float) $bot->rsi_buy_threshold : 40.0;
-            $rsiSell = $bot->rsi_sell_threshold !== null ? (float) $bot->rsi_sell_threshold : 60.0;
+            $conservativeRsi = config('trading.conservative_rsi', false);
+            $rsiBuy = $conservativeRsi ? 35.0 : ($bot->rsi_buy_threshold !== null ? (float) $bot->rsi_buy_threshold : 40.0);
+            $rsiSell = $conservativeRsi ? 65.0 : ($bot->rsi_sell_threshold !== null ? (float) $bot->rsi_sell_threshold : 60.0);
             $emaTolerance = (float) (config('trading.ema_tolerance_percent', 1));
             $emaToleranceDeep = config('trading.ema_tolerance_deep_percent') !== null ? (float) config('trading.ema_tolerance_deep_percent') : null;
             $rsiDeepOversold = config('trading.rsi_deep_oversold') !== null ? (float) config('trading.rsi_deep_oversold') : null;
@@ -119,9 +143,24 @@ class RunBtcQuoteBotsCommand extends Command
                     $this->line("Позиция уже открыта (Position already open), пропуск BUY");
                     continue;
                 }
+                if ($pauseNewOpensBtcQuote) {
+                    BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'pause_daily_loss');
+                    $this->warn("BUY пропущен: пауза из-за дневного убытка по BTC-quote (PnL сегодня ≈ {$dailyPnLBtcQuoteUsdt} USDT)");
+                    continue;
+                }
+                $minMinutes = config('trading.min_minutes_between_opens');
+                if ($minMinutes !== null && $minMinutes > 0) {
+                    $lastOpen = BtcQuoteTrade::where('btc_quote_bot_id', $bot->id)->where('side', 'BUY')->orderByDesc('created_at')->first();
+                    if ($lastOpen && $lastOpen->created_at->diffInMinutes(now(), false) < $minMinutes) {
+                        BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'cooldown_opens');
+                        $this->warn("BUY пропущен: кулдаун {$minMinutes} мин (BTC-quote)");
+                        continue;
+                    }
+                }
 
                 $balanceBtc = $service->getBalance('BTC');
-                $requiredBtc = (float) $bot->position_size_btc;
+                $multiplier = (float) (config('trading.position_size_multiplier', 1));
+                $requiredBtc = (float) $bot->position_size_btc * $multiplier;
                 if ($balanceBtc < $requiredBtc && ! $bot->dry_run) {
                     BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'insufficient_btc');
                     $this->warn("Недостаточно BTC (Insufficient BTC). Доступно: {$balanceBtc}, нужно: {$requiredBtc}");

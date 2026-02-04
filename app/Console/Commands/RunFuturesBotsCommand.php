@@ -45,6 +45,17 @@ class RunFuturesBotsCommand extends Command
         $telegram = new TelegramService();
         $telegram->notifyFuturesRunStart($bots->count());
 
+        // Пауза новых открытий при дневном убытке (тот же порог, что и для спота)
+        $pauseThreshold = config('trading.pause_new_opens_daily_loss_usdt');
+        $todayStart = now()->startOfDay();
+        $dailyPnLFutures = $pauseThreshold !== null
+            ? (float) FuturesTrade::whereIn('futures_bot_id', $bots->pluck('id'))
+                ->whereNotNull('realized_pnl')
+                ->where('closed_at', '>=', $todayStart)
+                ->sum('realized_pnl')
+            : 0;
+        $pauseNewOpensFutures = $pauseThreshold !== null && $dailyPnLFutures <= -$pauseThreshold;
+
         foreach ($bots as $bot) {
             try {
             $this->line(str_repeat('-', 40));
@@ -122,6 +133,20 @@ class RunFuturesBotsCommand extends Command
                     $this->line("Позиция уже открыта (Position already open), пропуск BUY");
                     continue;
                 }
+                if ($pauseNewOpensFutures) {
+                    BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'pause_daily_loss');
+                    $this->warn("BUY пропущен: пауза из-за дневного убытка по фьючерсам (PnL сегодня: {$dailyPnLFutures} USDT)");
+                    continue;
+                }
+                $minMinutes = config('trading.min_minutes_between_opens');
+                if ($minMinutes !== null && $minMinutes > 0) {
+                    $lastOpen = FuturesTrade::where('futures_bot_id', $bot->id)->where('side', 'BUY')->whereNotNull('filled_at')->orderByDesc('filled_at')->first();
+                    if ($lastOpen && $lastOpen->filled_at && $lastOpen->filled_at->diffInMinutes(now(), false) < $minMinutes) {
+                        BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'cooldown_opens');
+                        $this->warn("BUY пропущен: кулдаун {$minMinutes} мин (Futures)");
+                        continue;
+                    }
+                }
 
                 try {
                     $balance = RetryHelper::retry(fn () => $service->getBalance('USDT'), 3, 1000);
@@ -130,7 +155,8 @@ class RunFuturesBotsCommand extends Command
                     TelegramService::notifyBotErrorOnce('futures', $bot->symbol, $e->getMessage(), $bot->id);
                     continue;
                 }
-                $marginRequired = (float) $bot->position_size_usdt;
+                $multiplier = (float) (config('trading.position_size_multiplier', 1));
+                $marginRequired = (float) $bot->position_size_usdt * $multiplier;
                 if ($balance < $marginRequired && ! $bot->dry_run) {
                     BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'insufficient_margin');
                     $this->warn("Недостаточно маржи (Insufficient margin). Доступно: {$balance}, нужно: {$marginRequired}");
