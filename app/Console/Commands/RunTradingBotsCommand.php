@@ -101,8 +101,14 @@ class RunTradingBotsCommand extends Command
             | CANDLES
             |--------------------------------------------------------------------------
             */
+            $candleLimit = 100;
+            $trendFilterEnabled = config('trading.trend_filter_enabled', false);
+            $trendEmaPeriod = (int) config('trading.trend_filter_ema_period', 50);
+            if ($trendFilterEnabled && $trendEmaPeriod > 0 && $trendEmaPeriod > 100) {
+                $candleLimit = max(250, $trendEmaPeriod + 50);
+            }
             try {
-                $candles = RetryHelper::retry(fn () => $exchangeService->getCandles($bot->symbol, $bot->timeframe, 100), 3, 1000);
+                $candles = RetryHelper::retry(fn () => $exchangeService->getCandles($bot->symbol, $bot->timeframe, $candleLimit), 3, 1000);
             } catch (\Throwable $e) {
                 $this->error('Ошибка получения свечей (Candles error): ' . $e->getMessage());
                 TelegramService::notifyBotErrorOnce('spot', $bot->symbol, $e->getMessage(), $bot->id);
@@ -119,7 +125,8 @@ class RunTradingBotsCommand extends Command
                 $candleList = $candles['data'] ?? [];
             }
 
-            if (empty($candleList) || count($candleList) < 20) {
+            $minCandles = $trendFilterEnabled && $trendEmaPeriod > 0 ? max(20, $trendEmaPeriod) : 20;
+            if (empty($candleList) || count($candleList) < $minCandles) {
                 $this->warn('Недостаточно данных свечей (Not enough candle data)');
                 continue;
             }
@@ -356,6 +363,22 @@ class RunTradingBotsCommand extends Command
                     $this->warn('BUY пропущен: позиция уже открыта (BUY skipped: position already open)');
                     $telegram->notifySkip('BUY', 'Позиция уже открыта (Position already open)');
                     continue;
+                }
+
+                // Фильтр тренда по длинной EMA: не входить в лонг, если цена ниже длинной EMA
+                if ($trendFilterEnabled && $trendEmaPeriod > 0 && count($closes) >= $trendEmaPeriod) {
+                    try {
+                        $longEma = EmaIndicator::calculate($closes, $trendEmaPeriod);
+                        $tolerance = (float) (config('trading.trend_filter_tolerance_percent', 0));
+                        $minPrice = $longEma * (1 - $tolerance / 100);
+                        if ($price < $minPrice) {
+                            BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'trend_filter');
+                            $this->warn("BUY пропущен: цена {$price} ниже длинной EMA({$trendEmaPeriod}) {$longEma} (фильтр тренда) (BUY skipped: price below trend EMA)");
+                            continue;
+                        }
+                    } catch (\Throwable $e) {
+                        logger()->warning('Trend filter EMA calculation failed', ['bot_id' => $bot->id, 'error' => $e->getMessage()]);
+                    }
                 }
 
                 // 4. Пауза новых открытий при дневном убытке

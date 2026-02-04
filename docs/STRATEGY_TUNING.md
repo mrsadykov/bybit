@@ -166,3 +166,23 @@ TRADING_TRAILING_STOP_ACTIVATION_PERCENT=1
 **Порядок срабатывания:** сначала проверяется стоп-лосс (пол), затем тейк-профит, затем трейлинг-стоп. Трейлинг помогает зафиксировать часть прибыли при откате вместо того, чтобы ждать жёсткого TP или отдавать в минус по SL.
 
 **Миграция:** один раз выполни `php artisan migrate` (добавляется поле `trailing_high_price` в таблицу `trades`).
+
+---
+
+## 8. Фильтр тренда по длинной EMA (спот)
+
+Не открывать лонг (BUY), если цена **ниже длинной EMA** — меньше входов против тренда.
+
+**В `.env`:**
+
+```env
+TRADING_TREND_FILTER_ENABLED=true
+TRADING_TREND_FILTER_EMA_PERIOD=50
+TRADING_TREND_FILTER_TOLERANCE_PERCENT=0
+```
+
+- **TRADING_TREND_FILTER_ENABLED=true** — включить фильтр.
+- **TRADING_TREND_FILTER_EMA_PERIOD=50** — период длинной EMA (50 или 200). При 200 запрашивается больше свечей (250).
+- **TRADING_TREND_FILTER_TOLERANCE_PERCENT=0** — BUY только если цена **выше** длинной EMA. Если задать, например, 0.5 — разрешить цену до 0.5% ниже EMA.
+
+При срабатывании фильтра в логах и в Decision Log будет причина `trend_filter` (BUY пропущен: цена ниже длинной EMA).

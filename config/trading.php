@@ -42,6 +42,11 @@ return [
     'ema_tolerance_deep_percent' => env('TRADING_EMA_TOLERANCE_DEEP_PERCENT', null), // при RSI < rsi_deep_oversold использовать этот допуск для BUY (например 3)
     'rsi_deep_oversold' => env('TRADING_RSI_DEEP_OVERSOLD', null), // порог «глубокой перепроданности» (например 25). null = отключено
 
+    // Фильтр тренда по длинной EMA: не открывать лонг, если цена ниже длинной EMA (только спот)
+    'trend_filter_enabled' => filter_var(env('TRADING_TREND_FILTER_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+    'trend_filter_ema_period' => env('TRADING_TREND_FILTER_EMA_PERIOD') !== null && env('TRADING_TREND_FILTER_EMA_PERIOD') !== '' ? (int) env('TRADING_TREND_FILTER_EMA_PERIOD') : 50,
+    'trend_filter_tolerance_percent' => env('TRADING_TREND_FILTER_TOLERANCE_PERCENT') !== null && env('TRADING_TREND_FILTER_TOLERANCE_PERCENT') !== '' ? (float) env('TRADING_TREND_FILTER_TOLERANCE_PERCENT') : 0,
+
     'bybit' => [
         'env' => env('BYBIT_ENV', 'testnet'), // testnet | production
     ],
