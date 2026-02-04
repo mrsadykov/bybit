@@ -16,6 +16,11 @@ return [
     // 2. Глобальный стоп-лосс (%): если задан — используется вместо значения в боте (ужесточение)
     'stop_loss_percent_override' => env('TRADING_STOP_LOSS_PERCENT_OVERRIDE') !== null && env('TRADING_STOP_LOSS_PERCENT_OVERRIDE') !== '' ? (float) env('TRADING_STOP_LOSS_PERCENT_OVERRIDE') : null,
 
+    // Трейлинг-стоп: продажа при откате от максимума с момента входа (только спот)
+    'trailing_stop_percent' => env('TRADING_TRAILING_STOP_PERCENT') !== null && env('TRADING_TRAILING_STOP_PERCENT') !== '' ? (float) env('TRADING_TRAILING_STOP_PERCENT') : null,
+    // Активация трейлинг-стопа: начать отслеживать максимум только после роста цены на X% от входа (0 = с входа)
+    'trailing_stop_activation_percent' => env('TRADING_TRAILING_STOP_ACTIVATION_PERCENT') !== null && env('TRADING_TRAILING_STOP_ACTIVATION_PERCENT') !== '' ? (float) env('TRADING_TRAILING_STOP_ACTIVATION_PERCENT') : 0,
+
     // 3. Реже торговать: консервативные RSI 35/65 (если true — подменяют пороги бота только для входа/выхода по сигналу)
     'conservative_rsi' => env('TRADING_CONSERVATIVE_RSI', false),
     // Минимальный интервал (минуты) между открытием новых позиций по одному боту

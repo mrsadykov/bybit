@@ -207,8 +207,10 @@ class RunTradingBotsCommand extends Command
             // 2. Стоп-лосс: глобальный override или значение бота
             $slPercent = config('trading.stop_loss_percent_override') ?? $bot->stop_loss_percent;
             $tpPercent = $bot->take_profit_percent;
+            $trailingStopPercent = config('trading.trailing_stop_percent');
+            $trailingActivationPercent = (float) (config('trading.trailing_stop_activation_percent', 0));
 
-            if ($netPosition > 0 && ($slPercent || $tpPercent)) {
+            if ($netPosition > 0 && ($slPercent || $tpPercent || $trailingStopPercent)) {
                 // Получаем все открытые BUY позиции
                 $openBuys = Trade::where('trading_bot_id', $bot->id)
                     ->where('side', 'BUY')
@@ -223,18 +225,35 @@ class RunTradingBotsCommand extends Command
                     $shouldSell = false;
                     $reason = '';
 
-                    // Проверка Stop-Loss
+                    // Трейлинг-стоп: обновить максимум цены с входа (для следующей проверки)
+                    if ($trailingStopPercent !== null && $trailingStopPercent > 0) {
+                        $prevHigh = $buyTrade->trailing_high_price !== null ? (float) $buyTrade->trailing_high_price : $buyPrice;
+                        $high = max($prevHigh, $price);
+                        if ($high != $prevHigh || $buyTrade->trailing_high_price === null) {
+                            $buyTrade->update(['trailing_high_price' => $high]);
+                        }
+                    }
+
+                    // Порядок проверок: SL (пол — убыток), TP (цель), трейлинг (откат от макс.)
                     if ($slPercent && $priceChange <= -abs((float) $slPercent)) {
                         $shouldSell = true;
                         $reason = "STOP-LOSS ({$slPercent}%)";
                         $this->warn("🔴 STOP-LOSS сработал! ({$reason}) - Цена упала на " . number_format(abs($priceChange), 2) . "%");
                     }
-
-                    // Проверка Take-Profit
-                    if ($tpPercent && $priceChange >= (float) $tpPercent) {
+                    if (! $shouldSell && $tpPercent && $priceChange >= (float) $tpPercent) {
                         $shouldSell = true;
                         $reason = "TAKE-PROFIT ({$tpPercent}%)";
                         $this->warn("🟢 TAKE-PROFIT сработал! ({$reason}) - Цена выросла на " . number_format($priceChange, 2) . "%");
+                    }
+                    if (! $shouldSell && $trailingStopPercent !== null && $trailingStopPercent > 0) {
+                        $high = $buyTrade->trailing_high_price !== null ? (float) $buyTrade->trailing_high_price : $buyPrice;
+                        $trailingActive = $price >= $buyPrice * (1 + $trailingActivationPercent / 100);
+                        $dropFromHigh = $high > 0 ? (($high - $price) / $high) * 100 : 0;
+                        if ($trailingActive && $dropFromHigh >= (float) $trailingStopPercent) {
+                            $shouldSell = true;
+                            $reason = "TRAILING-STOP ({$trailingStopPercent}%)";
+                            $this->warn("🟠 TRAILING-STOP сработал! ({$reason}) — откат от макс. " . number_format($dropFromHigh, 2) . "%");
+                        }
                     }
 
                     if ($shouldSell) {

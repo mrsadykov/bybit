@@ -22,7 +22,8 @@ class Trade extends Model
         'filled_at',
         'parent_id',
         'closed_at',
-        'realized_pnl'
+        'realized_pnl',
+        'trailing_high_price', // максимум цены с входа (для трейлинг-стопа)
     ];
 
     protected $casts = [
@@ -32,7 +33,8 @@ class Trade extends Model
         'realized_pnl' => 'decimal:8',
         'filled_at' => 'datetime',
         'closed_at' => 'datetime',
-        'fee' => 'decimal:8'
+        'fee' => 'decimal:8',
+        'trailing_high_price' => 'decimal:8',
     ];
 
     public function bot(): BelongsTo
