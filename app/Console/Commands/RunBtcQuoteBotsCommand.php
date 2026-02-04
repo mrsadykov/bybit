@@ -45,6 +45,8 @@ class RunBtcQuoteBotsCommand extends Command
         $telegram = new TelegramService();
         $telegram->notifyBtcQuoteRunStart($bots->count());
 
+        $this->syncPendingBtcQuoteTrades($bots);
+
         foreach ($bots as $bot) {
             try {
             $this->line(str_repeat('-', 40));
@@ -227,6 +229,40 @@ class RunBtcQuoteBotsCommand extends Command
         Cache::put('health_last_btc_quote_run', now()->timestamp, now()->addDay());
         $this->info('Боты за BTC завершены (BTC-quote run finished).');
         return self::SUCCESS;
+    }
+
+    /**
+     * Синхронизация статусов PENDING ордеров с OKX (обновление до FILLED при заполнении).
+     */
+    private function syncPendingBtcQuoteTrades(\Illuminate\Support\Collection $bots): void
+    {
+        $botIds = $bots->pluck('id')->all();
+        $pending = BtcQuoteTrade::where('status', 'PENDING')
+            ->whereNotNull('order_id')
+            ->whereIn('btc_quote_bot_id', $botIds)
+            ->with('btcQuoteBot.exchangeAccount')
+            ->get();
+
+        foreach ($pending as $trade) {
+            $bot = $trade->btcQuoteBot;
+            if (! $bot || ! $bot->exchangeAccount || $bot->exchangeAccount->exchange !== 'okx') {
+                continue;
+            }
+            try {
+                $service = ExchangeServiceFactory::create($bot->exchangeAccount);
+                $res = RetryHelper::retry(fn () => $service->getOrder($bot->symbol, $trade->order_id), 2, 500);
+                $order = $res['data'][0] ?? null;
+                if ($order && strtolower((string) ($order['state'] ?? '')) === 'filled') {
+                    $trade->update([
+                        'status' => 'FILLED',
+                        'filled_at' => $trade->filled_at ?? now(),
+                    ]);
+                    $this->line("BTC-quote: ордер {$trade->order_id} отмечен как FILLED.");
+                }
+            } catch (\Throwable $e) {
+                logger()->warning('btc-quote sync pending order failed', ['order_id' => $trade->order_id, 'error' => $e->getMessage()]);
+            }
+        }
     }
 
     private function getOpenPositionSize(BtcQuoteBot $bot): float
