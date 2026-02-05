@@ -189,7 +189,7 @@ class BacktestFuturesCommand extends Command
                     $notional = $positionContracts * $price * $ctVal;
                     $feeCost = $notional * $fee * 2;
                     $pnl = ($price - $entryPrice) * $positionContracts * $ctVal - $feeCost;
-                    $balance += $pnl;
+                    $balance += $positionUsdt + $pnl;
 
                     $trades[] = [
                         'buy_price' => $entryPrice,
