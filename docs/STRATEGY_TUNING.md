@@ -206,3 +206,48 @@ TRADING_VOLUME_FILTER_MIN_RATIO=1.0
 - **TRADING_VOLUME_FILTER_MIN_RATIO=1.0** — BUY только если объём последней свечи **≥** среднего. При значении 1.2 — только если объём не меньше 120% от среднего.
 
 Используется объём из ответа биржи (OKX/Bybit, индекс 5 в свече). При срабатывании в логах и Decision Log будет причина `volume_filter`.
+
+---
+
+## 10. Бэктест и оптимизация с фильтрами и длинным периодом
+
+Чтобы **оценить влияние фильтров тренда и объёма** и проверить стратегию на большем объёме данных:
+
+### Бэктест одного символа с фильтрами
+
+```bash
+php artisan strategy:backtest BTCUSDT --timeframe=1h --period=500 --trend-filter --trend-ema-period=50 --volume-filter --volume-period=20
+```
+
+Опции:
+- `--trend-filter` — BUY только если цена выше длинной EMA.
+- `--trend-ema-period=50` (или 200).
+- `--trend-tolerance=0` — допуск в % ниже EMA (0 = строго выше).
+- `--volume-filter` — BUY только если объём последней свечи ≥ среднего.
+- `--volume-period=20` и `--volume-min-ratio=1.0`.
+
+### Бэктест всех ботов (фильтры из .env)
+
+При включённых в `.env` `TRADING_TREND_FILTER_ENABLED` и/или `TRADING_VOLUME_FILTER_ENABLED` команда `strategy:backtest-all` автоматически передаёт эти фильтры в бэктест.
+
+```bash
+php artisan strategy:backtest-all --period=1000
+```
+
+### Оптимизация RSI с фильтрами и большим периодом
+
+```bash
+# Больше свечей для статистики
+php artisan strategy:optimize-all --period=1500
+
+# С фильтром тренда (параметры из config/trading)
+php artisan strategy:optimize-all --period=1000 --trend-filter
+
+# С обоими фильтрами
+php artisan strategy:optimize-all --period=1000 --trend-filter --volume-filter
+
+# Другой таймфрейм для всех ботов (если нужно сравнить 4h)
+php artisan strategy:optimize-all --period=500 --timeframe=4h
+```
+
+Результаты покажут, улучшают ли фильтры доходность на истории (меньше сделок, но выше win rate или меньший минус).

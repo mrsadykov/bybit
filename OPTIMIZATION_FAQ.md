@@ -249,3 +249,24 @@ php artisan telegram:daily-stats  # Ежедневная статистика
 5. Защиту от переоптимизации
 
 **Это сложная задача, которую лучше делать вручную с периодичностью раз в месяц/квартал.**
+
+---
+
+## 11. Опции strategy:optimize-all (период, таймфрейм, фильтры)
+
+Команда `php artisan strategy:optimize-all` поддерживает:
+
+- **--period=1500** (или 2000) — больше свечей для оценки (по умолчанию 1000).
+- **--timeframe=4h** (или 1D) — переопределить таймфрейм для всех ботов при оптимизации.
+- **--trend-filter** — включить в бэктесте фильтр тренда (BUY только если цена выше длинной EMA); параметры берутся из config.
+- **--volume-filter** — включить фильтр объёма в бэктесте.
+
+Примеры:
+
+```bash
+php artisan strategy:optimize-all --period=1500
+php artisan strategy:optimize-all --period=1000 --trend-filter --volume-filter
+php artisan strategy:optimize-all --period=500 --timeframe=4h
+```
+
+Подробнее: `docs/STRATEGY_TUNING.md`, раздел 10.

@@ -94,6 +94,16 @@ class BacktestAllBotsCommand extends Command
                 $params['--ema-tolerance-deep'] = $emaToleranceDeep;
                 $params['--rsi-deep-oversold'] = $rsiDeepOversold;
             }
+            if (filter_var(config('trading.trend_filter_enabled', false), FILTER_VALIDATE_BOOLEAN)) {
+                $params['--trend-filter'] = true;
+                $params['--trend-ema-period'] = (int) (config('trading.trend_filter_ema_period') ?: 50);
+                $params['--trend-tolerance'] = (float) (config('trading.trend_filter_tolerance_percent') ?: 0);
+            }
+            if (filter_var(config('trading.volume_filter_enabled', false), FILTER_VALIDATE_BOOLEAN)) {
+                $params['--volume-filter'] = true;
+                $params['--volume-period'] = (int) (config('trading.volume_filter_period') ?: 20);
+                $params['--volume-min-ratio'] = (float) (config('trading.volume_filter_min_ratio') ?: 1.0);
+            }
             try {
                 Artisan::call('strategy:backtest', $params);
 

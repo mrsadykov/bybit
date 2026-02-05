@@ -9,8 +9,11 @@ use Illuminate\Support\Facades\Artisan;
 class OptimizeAllBotsCommand extends Command
 {
     protected $signature = 'strategy:optimize-all
-                            {--period=1000 : Количество свечей}
+                            {--period=1000 : Количество свечей (можно 1500, 2000 для большей выборки)}
+                            {--timeframe= : Переопределить таймфрейм для всех ботов (1h, 4h, 1D)}
                             {--exchange=okx : Биржа (okx или bybit)}
+                            {--trend-filter : Включить фильтр тренда в бэктесте}
+                            {--volume-filter : Включить фильтр объёма в бэктесте}
                             {--output= : Файл для сохранения результатов (JSON)}';
 
     protected $description = 'Оптимизация RSI-порогов по всем ботам: перебор 38/62, 40/60, 42/58, 45/55, вывод лучшей комбинации на символ';
@@ -26,7 +29,10 @@ class OptimizeAllBotsCommand extends Command
     public function handle(): int
     {
         $period = (int) $this->option('period');
+        $timeframeOverride = $this->option('timeframe');
         $exchange = $this->option('exchange');
+        $trendFilter = $this->option('trend-filter');
+        $volumeFilter = $this->option('volume-filter');
         $outputFile = $this->option('output');
 
         $this->info('Оптимизация RSI-порогов по всем ботам (Optimizing RSI thresholds for all bots)...');
@@ -53,21 +59,33 @@ class OptimizeAllBotsCommand extends Command
             foreach (self::RSI_THRESHOLD_SETS as [$rsiBuy, $rsiSell]) {
                 $bar->advance();
 
+                $timeframe = ($timeframeOverride !== null && $timeframeOverride !== '') ? $timeframeOverride : $bot->timeframe;
+                $params = [
+                    'symbol' => $bot->symbol,
+                    '--timeframe' => $timeframe,
+                    '--exchange' => $exchange,
+                    '--period' => $period,
+                    '--rsi-period' => $rsiPeriod,
+                    '--ema-period' => $emaPeriod,
+                    '--rsi-buy-threshold' => $rsiBuy,
+                    '--rsi-sell-threshold' => $rsiSell,
+                    '--position-size' => $positionSize,
+                    '--stop-loss' => $stopLoss ? (string) $stopLoss : '',
+                    '--take-profit' => $takeProfit ? (string) $takeProfit : '',
+                    '--json' => true,
+                ];
+                if ($trendFilter) {
+                    $params['--trend-filter'] = true;
+                    $params['--trend-ema-period'] = (int) (config('trading.trend_filter_ema_period') ?: 50);
+                    $params['--trend-tolerance'] = (float) (config('trading.trend_filter_tolerance_percent') ?: 0);
+                }
+                if ($volumeFilter) {
+                    $params['--volume-filter'] = true;
+                    $params['--volume-period'] = (int) (config('trading.volume_filter_period') ?: 20);
+                    $params['--volume-min-ratio'] = (float) (config('trading.volume_filter_min_ratio') ?: 1.0);
+                }
                 try {
-                    Artisan::call('strategy:backtest', [
-                        'symbol' => $bot->symbol,
-                        '--timeframe' => $bot->timeframe,
-                        '--exchange' => $exchange,
-                        '--period' => $period,
-                        '--rsi-period' => $rsiPeriod,
-                        '--ema-period' => $emaPeriod,
-                        '--rsi-buy-threshold' => $rsiBuy,
-                        '--rsi-sell-threshold' => $rsiSell,
-                        '--position-size' => $positionSize,
-                        '--stop-loss' => $stopLoss ? (string) $stopLoss : '',
-                        '--take-profit' => $takeProfit ? (string) $takeProfit : '',
-                        '--json' => true,
-                    ]);
+                    Artisan::call('strategy:backtest', $params);
 
                     $parsed = $this->parseBacktestJson(trim(Artisan::output()));
                     if (!$parsed || isset($parsed['error'])) {

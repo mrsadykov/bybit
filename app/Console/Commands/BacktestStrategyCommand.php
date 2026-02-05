@@ -27,6 +27,12 @@ class BacktestStrategyCommand extends Command
                             {--ema-tolerance=1 : Допуск цены к EMA в % для BUY/SELL (1 = 1%, 2 = больше входов)}
                             {--ema-tolerance-deep= : При RSI < rsi-deep-oversold допуск для BUY в % (например 3)}
                             {--rsi-deep-oversold= : Порог RSI для глубокой перепроданности (например 25). Вместе с ema-tolerance-deep}
+                            {--trend-filter : Включить фильтр тренда (BUY только если цена выше длинной EMA)}
+                            {--trend-ema-period=50 : Период длинной EMA для фильтра тренда}
+                            {--trend-tolerance=0 : Допуск в % ниже длинной EMA (0 = строго выше EMA)}
+                            {--volume-filter : Включить фильтр объёма (BUY только если объём последней свечи >= среднего)}
+                            {--volume-period=20 : Период для среднего объёма}
+                            {--volume-min-ratio=1.0 : Минимальное отношение объёма к среднему (1.0 = не ниже среднего)}
                             {--json : Вывести результаты в формате JSON}';
 
     protected $description = 'Бэктестинг стратегии RSI + EMA на исторических данных (Backtest RSI + EMA strategy on historical data)';
@@ -51,6 +57,12 @@ class BacktestStrategyCommand extends Command
             ? (float) $this->option('ema-tolerance-deep') : null;
         $rsiDeepOversold = $this->option('rsi-deep-oversold') !== null && $this->option('rsi-deep-oversold') !== ''
             ? (float) $this->option('rsi-deep-oversold') : null;
+        $trendFilter = $this->option('trend-filter');
+        $trendEmaPeriod = (int) $this->option('trend-ema-period');
+        $trendTolerance = (float) $this->option('trend-tolerance');
+        $volumeFilter = $this->option('volume-filter');
+        $volumePeriod = (int) $this->option('volume-period');
+        $volumeMinRatio = (float) $this->option('volume-min-ratio');
         $jsonMode = $this->option('json');
 
         // В режиме JSON не выводим информационные сообщения
@@ -79,6 +91,12 @@ class BacktestStrategyCommand extends Command
             if ($emaToleranceDeepPercent !== null && $rsiDeepOversold !== null) {
                 $this->line("  Глубокая перепроданность (Deep oversold): RSI < {$rsiDeepOversold} → допуск {$emaToleranceDeepPercent}%");
             }
+            if ($trendFilter) {
+                $this->line("  Фильтр тренда (Trend filter): EMA {$trendEmaPeriod}, допуск {$trendTolerance}%");
+            }
+            if ($volumeFilter) {
+                $this->line("  Фильтр объёма (Volume filter): период {$volumePeriod}, min ratio {$volumeMinRatio}");
+            }
             $this->line('');
         }
 
@@ -90,7 +108,9 @@ class BacktestStrategyCommand extends Command
             $this->info("Получение исторических данных (Fetching historical data)...");
         }
         try {
-            $limit = min($period + 50, 1000); // Берем немного больше для расчета индикаторов
+            $trendFilterEnabled = $this->option('trend-filter');
+        $trendEmaForLimit = $trendFilterEnabled ? (int) $this->option('trend-ema-period') : 0;
+        $limit = min($period + max(50, $trendEmaForLimit), 1000); // больше свечей при фильтре тренда
             $candlesResponse = $this->fetchCandlesPublic($exchangeName, $symbol, $timeframe, $limit);
             
             // Обрабатываем разные форматы ответов
@@ -161,6 +181,13 @@ class BacktestStrategyCommand extends Command
         if ($useMacdFilter) {
             $minCandles = max($minCandles, 34); // MACD 26+9-1
         }
+        if ($trendFilterEnabled && $trendEmaForLimit > 0) {
+            $minCandles = max($minCandles, $trendEmaForLimit);
+        }
+        $volumeFilterEnabled = $this->option('volume-filter');
+        if ($volumeFilterEnabled) {
+            $minCandles = max($minCandles, (int) $this->option('volume-period'));
+        }
         // Проверяем, что есть данные для бэктестинга
         if (empty($candleList) || count($candleList) < $minCandles) {
             if ($jsonMode) {
@@ -177,7 +204,7 @@ class BacktestStrategyCommand extends Command
             $this->line('');
         }
 
-        $results = $this->runBacktest($candleList, $rsiPeriod, $emaPeriod, $rsiBuyThreshold, $rsiSellThreshold, $positionSize, $fee, $stopLoss, $takeProfit, $useMacdFilter, $emaTolerancePercent, $emaToleranceDeepPercent, $rsiDeepOversold);
+        $results = $this->runBacktest($candleList, $rsiPeriod, $emaPeriod, $rsiBuyThreshold, $rsiSellThreshold, $positionSize, $fee, $stopLoss, $takeProfit, $useMacdFilter, $emaTolerancePercent, $emaToleranceDeepPercent, $rsiDeepOversold, $trendFilter, $trendEmaPeriod, $trendTolerance, $volumeFilter, $volumePeriod, $volumeMinRatio);
 
         // Добавляем параметры в результаты для анализа
         $results['parameters'] = [
@@ -212,10 +239,14 @@ class BacktestStrategyCommand extends Command
     /**
      * Запуск бэктестинга
      */
-    protected function runBacktest(array $candles, int $rsiPeriod, int $emaPeriod, float $rsiBuyThreshold, float $rsiSellThreshold, float $positionSize, float $fee, ?float $stopLoss = null, ?float $takeProfit = null, bool $useMacdFilter = false, float $emaTolerancePercent = 1.0, ?float $emaToleranceDeepPercent = null, ?float $rsiDeepOversold = null): array
+    protected function runBacktest(array $candles, int $rsiPeriod, int $emaPeriod, float $rsiBuyThreshold, float $rsiSellThreshold, float $positionSize, float $fee, ?float $stopLoss = null, ?float $takeProfit = null, bool $useMacdFilter = false, float $emaTolerancePercent = 1.0, ?float $emaToleranceDeepPercent = null, ?float $rsiDeepOversold = null, bool $trendFilter = false, int $trendEmaPeriod = 50, float $trendTolerance = 0.0, bool $volumeFilter = false, int $volumePeriod = 20, float $volumeMinRatio = 1.0): array
     {
         $closes = array_column($candles, 'close');
         $timestamps = array_column($candles, 'timestamp');
+        $volumes = array_column($candles, 'volume');
+        if (empty($volumes) || count($volumes) !== count($closes)) {
+            $volumes = array_fill(0, count($closes), 1.0); // нет объёма — не фильтруем по объёму
+        }
 
         $balance = 1000.0; // Начальный баланс в USDT
         $position = 0.0; // Количество криптовалюты
@@ -229,8 +260,8 @@ class BacktestStrategyCommand extends Command
         $currentBuyPrice = null;
         $currentBuyTimestamp = null;
 
-        // Начинаем с индекса, достаточного для расчета индикаторов (и MACD при включённом фильтре)
-        $startIndex = max($rsiPeriod, $emaPeriod, $useMacdFilter ? 34 : 0);
+        // Начинаем с индекса, достаточного для расчета индикаторов (и MACD, длинной EMA при фильтре тренда)
+        $startIndex = max($rsiPeriod, $emaPeriod, $useMacdFilter ? 34 : 0, $trendFilter ? $trendEmaPeriod : 0);
 
         for ($i = $startIndex; $i < count($closes); $i++) {
             // Получаем историю цен до текущего момента
@@ -314,10 +345,35 @@ class BacktestStrategyCommand extends Command
 
             // BUY сигнал
             if ($signal === 'BUY' && $position <= 0 && $balance >= $positionSize) {
-                $buyAmount = $positionSize;
-                $buyCost = $buyAmount * (1 + $fee); // Комиссия при покупке
-                
-                if ($balance >= $buyCost) {
+                $skipBuy = false;
+
+                if ($trendFilter && $trendEmaPeriod > 0 && count($historicalCloses) >= $trendEmaPeriod) {
+                    try {
+                        $longEma = EmaIndicator::calculate($historicalCloses, $trendEmaPeriod);
+                        $longEmaVal = is_array($longEma) ? end($longEma) : $longEma;
+                        $minPrice = $longEmaVal * (1 - $trendTolerance / 100);
+                        if ($currentPrice < $minPrice) {
+                            $skipBuy = true;
+                        }
+                    } catch (\Throwable $e) {
+                        // оставляем BUY как есть при ошибке расчёта
+                    }
+                }
+
+                if (!$skipBuy && $volumeFilter && $volumePeriod > 0 && $i >= $volumePeriod) {
+                    $lastVol = (float) $volumes[$i];
+                    $recentVols = array_slice($volumes, $i - $volumePeriod + 1, $volumePeriod);
+                    $avgVol = array_sum($recentVols) / count($recentVols);
+                    if ($avgVol > 0 && $lastVol < $avgVol * $volumeMinRatio) {
+                        $skipBuy = true;
+                    }
+                }
+
+                if ($skipBuy) {
+                    // не открываем позицию, переходим к следующей свече
+                } elseif ($balance >= $positionSize * (1 + $fee)) {
+                    $buyAmount = $positionSize;
+                    $buyCost = $buyAmount * (1 + $fee); // Комиссия при покупке
                     $quantity = ($buyAmount / $currentPrice) * (1 - $fee); // Комиссия уменьшает количество
                     $balance -= $buyCost;
                     $position += $quantity;
