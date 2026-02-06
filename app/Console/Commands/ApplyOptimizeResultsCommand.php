@@ -11,13 +11,13 @@ class ApplyOptimizeResultsCommand extends Command
     protected $signature = 'strategy:apply-optimize
                             {--dry-run : Показать изменения без записи в БД}';
 
-    protected $description = 'Применить RSI-пороги: spot по strategy:optimize-all (BTC/ETH/BNB 38/62, SOL 45/55), btc-quote 40/60';
+    protected $description = 'Применить RSI-пороги: spot по strategy:optimize-all (BTC/ETH/BNB 38/62, SOL 40/60), btc-quote 40/60';
 
     /** Рекомендуемые RSI buy/sell по символу spot (по результатам strategy:optimize-all — наименьший убыток) */
     private const RECOMMENDED_SPOT = [
         'BTCUSDT' => [38, 62],
         'ETHUSDT' => [38, 62],
-        'SOLUSDT' => [45, 55],
+        'SOLUSDT' => [40, 60],
         'BNBUSDT' => [38, 62],
     ];
 
