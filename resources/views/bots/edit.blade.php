@@ -260,17 +260,17 @@
 
                         <div class="flex items-center justify-end gap-4 mt-6">
                             <a href="{{ route('bots.show', $bot) }}" 
-                                class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+                                class="bg-gray-200 hover:bg-gray-300 text-gray-900 font-bold py-2 px-4 rounded border border-gray-500">
                                 {{ __('bots.cancel') }}
                             </a>
                             <button type="submit" 
-                                class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                                class="bg-blue-200 hover:bg-blue-400 text-blue-900 font-bold py-2 px-4 rounded border border-blue-600">
                                 {{ __('bots.update') }}
                             </button>
                             <form action="{{ route('bots.destroy', $bot) }}" method="POST" class="inline" onsubmit="return confirm('{{ __('bots.confirm_delete') }}');">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+                                <button type="submit" class="bg-red-200 hover:bg-red-400 text-red-900 font-bold py-2 px-4 rounded border border-red-600">
                                     {{ __('bots.delete') }}
                                 </button>
                             </form>
@@ -284,16 +284,16 @@
     <!-- Фиксированная панель кнопок внизу экрана -->
     <div class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg py-4 px-4 sm:px-6 lg:px-8">
         <div class="max-w-4xl mx-auto flex flex-wrap items-center justify-end gap-3">
-            <a href="{{ route('bots.show', $bot) }}" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+            <a href="{{ route('bots.show', $bot) }}" class="bg-gray-200 hover:bg-gray-300 text-gray-900 font-bold py-2 px-4 rounded border border-gray-500">
                 {{ __('bots.cancel') }}
             </a>
-            <button type="submit" form="bot-edit-form" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+            <button type="submit" form="bot-edit-form" class="bg-blue-200 hover:bg-blue-400 text-blue-900 font-bold py-2 px-4 rounded border border-blue-600">
                 {{ __('bots.update') }}
             </button>
             <form action="{{ route('bots.destroy', $bot) }}" method="POST" class="inline" onsubmit="return confirm('{{ __('bots.confirm_delete') }}');">
                 @csrf
                 @method('DELETE')
-                <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+                <button type="submit" class="bg-red-200 hover:bg-red-400 text-red-900 font-bold py-2 px-4 rounded border border-red-600">
                     {{ __('bots.delete') }}
                 </button>
             </form>

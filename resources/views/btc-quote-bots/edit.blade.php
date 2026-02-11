@@ -156,16 +156,16 @@
                         </div>
 
                         <div class="flex gap-2">
-                            <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                            <button type="submit" class="bg-blue-200 hover:bg-blue-400 text-blue-900 font-bold py-2 px-4 rounded border border-blue-600">
                                 {{ __('btc_quote.update') }}
                             </button>
-                            <a href="{{ route('btc-quote-bots.show', $bot) }}" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">
+                            <a href="{{ route('btc-quote-bots.show', $bot) }}" class="bg-gray-200 hover:bg-gray-300 text-gray-900 font-bold py-2 px-4 rounded border border-gray-500">
                                 {{ __('btc_quote.cancel') }}
                             </a>
                             <form action="{{ route('btc-quote-bots.destroy', $bot) }}" method="POST" class="inline" onsubmit="return confirm('{{ __('btc_quote.confirm_delete') }}');">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+                                <button type="submit" class="bg-red-200 hover:bg-red-400 text-red-900 font-bold py-2 px-4 rounded border border-red-600">
                                     {{ __('btc_quote.delete') }}
                                 </button>
                             </form>
@@ -178,12 +178,12 @@
 
     <div class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-lg py-4 px-4 sm:px-6 lg:px-8">
         <div class="max-w-4xl mx-auto flex flex-wrap items-center justify-end gap-3">
-            <a href="{{ route('btc-quote-bots.show', $bot) }}" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded">{{ __('btc_quote.cancel') }}</a>
-            <button type="submit" form="btc-quote-bot-edit-form" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">{{ __('btc_quote.update') }}</button>
+            <a href="{{ route('btc-quote-bots.show', $bot) }}" class="bg-gray-200 hover:bg-gray-300 text-gray-900 font-bold py-2 px-4 rounded border border-gray-500">{{ __('btc_quote.cancel') }}</a>
+            <button type="submit" form="btc-quote-bot-edit-form" class="bg-blue-200 hover:bg-blue-400 text-blue-900 font-bold py-2 px-4 rounded border border-blue-600">{{ __('btc_quote.update') }}</button>
             <form action="{{ route('btc-quote-bots.destroy', $bot) }}" method="POST" class="inline" onsubmit="return confirm('{{ __('btc_quote.confirm_delete') }}');">
                 @csrf
                 @method('DELETE')
-                <button type="submit" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">{{ __('btc_quote.delete') }}</button>
+                <button type="submit" class="bg-red-200 hover:bg-red-400 text-red-900 font-bold py-2 px-4 rounded border border-red-600">{{ __('btc_quote.delete') }}</button>
             </form>
         </div>
     </div>
