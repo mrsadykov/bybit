@@ -21,6 +21,8 @@ class BtcQuoteBot extends Model
         'rsi_sell_threshold',
         'stop_loss_percent',
         'take_profit_percent',
+        'max_daily_loss_btc',
+        'max_losing_streak',
         'is_active',
         'dry_run',
         'last_trade_at',
@@ -33,6 +35,7 @@ class BtcQuoteBot extends Model
         'position_size_btc' => 'decimal:8',
         'stop_loss_percent' => 'decimal:2',
         'take_profit_percent' => 'decimal:2',
+        'max_daily_loss_btc' => 'decimal:8',
         'rsi_buy_threshold' => 'decimal:2',
         'rsi_sell_threshold' => 'decimal:2',
     ];

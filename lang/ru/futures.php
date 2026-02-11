@@ -27,6 +27,10 @@ return [
     'rsi_sell_must_exceed_buy' => 'RSI SELL должен быть больше RSI BUY.',
     'stop_loss_percent' => 'Стоп-лосс (%)',
     'take_profit_percent' => 'Тейк-профит (%)',
+    'max_daily_loss_usdt' => 'Макс. дневной убыток (USDT)',
+    'max_daily_loss_help' => 'При достижении дневного убытка по этому боту новые BUY пропускаются до следующего дня. Пусто = без лимита.',
+    'max_losing_streak' => 'Макс. серия убытков',
+    'max_losing_streak_help' => 'После N убыточных сделок подряд новые BUY пропускаются до следующего дня. Пусто = отключено.',
     'dry_run_mode' => 'Dry Run (без реальных ордеров)',
     'is_active' => 'Активен',
 

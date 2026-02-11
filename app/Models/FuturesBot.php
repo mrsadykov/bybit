@@ -22,6 +22,8 @@ class FuturesBot extends Model
         'leverage',
         'stop_loss_percent',
         'take_profit_percent',
+        'max_daily_loss_usdt',
+        'max_losing_streak',
         'is_active',
         'dry_run',
         'last_trade_at',
@@ -35,6 +37,7 @@ class FuturesBot extends Model
         'leverage' => 'integer',
         'stop_loss_percent' => 'decimal:2',
         'take_profit_percent' => 'decimal:2',
+        'max_daily_loss_usdt' => 'decimal:2',
         'rsi_buy_threshold' => 'decimal:2',
         'rsi_sell_threshold' => 'decimal:2',
     ];

@@ -125,6 +125,21 @@
                             </div>
                         </div>
 
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label for="max_daily_loss_btc" class="block text-sm font-medium text-gray-700 mb-2">{{ __('btc_quote.max_daily_loss_btc') }}</label>
+                                <input type="number" name="max_daily_loss_btc" id="max_daily_loss_btc" value="{{ old('max_daily_loss_btc', $bot->max_daily_loss_btc) }}" step="0.00001" min="0" placeholder="—"
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <p class="mt-1 text-sm text-gray-500">{{ __('btc_quote.max_daily_loss_help') }}</p>
+                            </div>
+                            <div>
+                                <label for="max_losing_streak" class="block text-sm font-medium text-gray-700 mb-2">{{ __('btc_quote.max_losing_streak') }}</label>
+                                <input type="number" name="max_losing_streak" id="max_losing_streak" value="{{ old('max_losing_streak', $bot->max_losing_streak) }}" step="1" min="1" max="20" placeholder="—"
+                                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <p class="mt-1 text-sm text-gray-500">{{ __('btc_quote.max_losing_streak_help') }}</p>
+                            </div>
+                        </div>
+
                         <div class="flex flex-col gap-2 mb-6">
                             <label class="inline-flex items-center">
                                 <input type="hidden" name="dry_run" value="0">

@@ -148,6 +148,39 @@ class RunBtcQuoteBotsCommand extends Command
                     $this->warn("BUY пропущен: пауза из-за дневного убытка по BTC-quote (PnL сегодня ≈ {$dailyPnLBtcQuoteUsdt} USDT)");
                     continue;
                 }
+                // Лимит дневного убытка по этому боту (в BTC)
+                $maxDailyLossBtc = $bot->max_daily_loss_btc !== null ? (float) $bot->max_daily_loss_btc : null;
+                if ($maxDailyLossBtc !== null && $maxDailyLossBtc > 0) {
+                    $botDailyPnLBtc = (float) BtcQuoteTrade::where('btc_quote_bot_id', $bot->id)
+                        ->whereNotNull('closed_at')->whereNotNull('realized_pnl_btc')
+                        ->where('closed_at', '>=', $todayStart)
+                        ->sum('realized_pnl_btc');
+                    if ($botDailyPnLBtc <= -$maxDailyLossBtc) {
+                        BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'bot_max_daily_loss');
+                        $this->warn("BUY пропущен: дневной убыток по боту {$bot->symbol} достиг лимита ({$botDailyPnLBtc} BTC)");
+                        continue;
+                    }
+                }
+                // Серия убытков по этому боту
+                $maxLosingStreak = $bot->max_losing_streak !== null ? (int) $bot->max_losing_streak : null;
+                if ($maxLosingStreak !== null && $maxLosingStreak > 0) {
+                    $lastTrades = BtcQuoteTrade::where('btc_quote_bot_id', $bot->id)
+                        ->whereNotNull('closed_at')->whereNotNull('realized_pnl_btc')
+                        ->orderByDesc('closed_at')->limit(50)->get();
+                    $losingStreak = 0;
+                    foreach ($lastTrades as $t) {
+                        if ((float) $t->realized_pnl_btc < 0) {
+                            $losingStreak++;
+                        } else {
+                            break;
+                        }
+                    }
+                    if ($losingStreak >= $maxLosingStreak) {
+                        BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'bot_max_losing_streak');
+                        $this->warn("BUY пропущен: серия убытков по боту {$bot->symbol} ({$losingStreak})");
+                        continue;
+                    }
+                }
                 $minMinutes = config('trading.min_minutes_between_opens');
                 if ($minMinutes !== null && $minMinutes > 0) {
                     $lastOpen = BtcQuoteTrade::where('btc_quote_bot_id', $bot->id)->where('side', 'BUY')->orderByDesc('created_at')->first();

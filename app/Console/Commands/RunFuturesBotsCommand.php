@@ -138,6 +138,39 @@ class RunFuturesBotsCommand extends Command
                     $this->warn("BUY пропущен: пауза из-за дневного убытка по фьючерсам (PnL сегодня: {$dailyPnLFutures} USDT)");
                     continue;
                 }
+                // Лимит дневного убытка по этому боту
+                $maxDailyLoss = $bot->max_daily_loss_usdt !== null ? (float) $bot->max_daily_loss_usdt : null;
+                if ($maxDailyLoss !== null && $maxDailyLoss > 0) {
+                    $botDailyPnL = (float) FuturesTrade::where('futures_bot_id', $bot->id)
+                        ->whereNotNull('closed_at')->whereNotNull('realized_pnl')
+                        ->where('closed_at', '>=', $todayStart)
+                        ->sum('realized_pnl');
+                    if ($botDailyPnL <= -$maxDailyLoss) {
+                        BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'bot_max_daily_loss');
+                        $this->warn("BUY пропущен: дневной убыток по боту {$bot->symbol} достиг лимита ({$botDailyPnL} USDT)");
+                        continue;
+                    }
+                }
+                // Серия убытков по этому боту
+                $maxLosingStreak = $bot->max_losing_streak !== null ? (int) $bot->max_losing_streak : null;
+                if ($maxLosingStreak !== null && $maxLosingStreak > 0) {
+                    $lastTrades = FuturesTrade::where('futures_bot_id', $bot->id)
+                        ->whereNotNull('closed_at')->whereNotNull('realized_pnl')
+                        ->orderByDesc('closed_at')->limit(50)->get();
+                    $losingStreak = 0;
+                    foreach ($lastTrades as $t) {
+                        if ((float) $t->realized_pnl < 0) {
+                            $losingStreak++;
+                        } else {
+                            break;
+                        }
+                    }
+                    if ($losingStreak >= $maxLosingStreak) {
+                        BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'bot_max_losing_streak');
+                        $this->warn("BUY пропущен: серия убытков по боту {$bot->symbol} ({$losingStreak})");
+                        continue;
+                    }
+                }
                 $minMinutes = config('trading.min_minutes_between_opens');
                 if ($minMinutes !== null && $minMinutes > 0) {
                     $lastOpen = FuturesTrade::where('futures_bot_id', $bot->id)->where('side', 'BUY')->whereNotNull('filled_at')->orderByDesc('filled_at')->first();
