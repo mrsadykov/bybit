@@ -53,6 +53,7 @@ return [
     'bot_created' => 'Trading bot created successfully!',
     'bot_updated' => 'Trading bot updated successfully!',
     'bot_deleted' => 'Trading bot deleted successfully!',
+    'confirm_delete' => 'Delete this bot?',
     'bot_activated' => 'Bot activated!',
     'bot_deactivated' => 'Bot deactivated!',
     'no_bots' => 'You don\'t have any trading bots yet.',
