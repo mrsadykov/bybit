@@ -52,6 +52,10 @@ return [
     'volume_filter_period' => env('TRADING_VOLUME_FILTER_PERIOD') !== null && env('TRADING_VOLUME_FILTER_PERIOD') !== '' ? (int) env('TRADING_VOLUME_FILTER_PERIOD') : 20,
     'volume_filter_min_ratio' => env('TRADING_VOLUME_FILTER_MIN_RATIO') !== null && env('TRADING_VOLUME_FILTER_MIN_RATIO') !== '' ? (float) env('TRADING_VOLUME_FILTER_MIN_RATIO') : 1.0,
 
+    // Временной фильтр: не открывать BUY в первые/последние N минут свечи (снижает шум; только спот)
+    'time_filter_skip_buy_first_minutes' => env('TRADING_SKIP_BUY_FIRST_MINUTES') !== null && env('TRADING_SKIP_BUY_FIRST_MINUTES') !== '' ? (int) env('TRADING_SKIP_BUY_FIRST_MINUTES') : null,
+    'time_filter_skip_buy_last_minutes' => env('TRADING_SKIP_BUY_LAST_MINUTES') !== null && env('TRADING_SKIP_BUY_LAST_MINUTES') !== '' ? (int) env('TRADING_SKIP_BUY_LAST_MINUTES') : null,
+
     'bybit' => [
         'env' => env('BYBIT_ENV', 'testnet'), // testnet | production
     ],

@@ -160,6 +160,63 @@ php artisan balance:check USDT --exchange=okx  # или bybit
 ⚠️ **Тестируйте на реальных средствах** (но маленьких) для проверки всех механизмов
 ⚠️ **Настройте cron** для автоматического запуска
 
+## Проверка пунктов улучшений (чек-лист)
+
+### 3. Фильтр тренда или объёма (с допуском) — как проверить, что сделано
+
+Фильтры включаются в **.env**. Проверка:
+
+**Вариант А — через .env:**
+- Откройте `.env` и найдите:
+  - **Тренд:** `TRADING_TREND_FILTER_ENABLED=true` и желательно `TRADING_TREND_FILTER_TOLERANCE_PERCENT=0.5` (допуск 0.5% ниже длинной EMA).
+  - **Объём:** `TRADING_VOLUME_FILTER_ENABLED=true` и желательно `TRADING_VOLUME_FILTER_MIN_RATIO=0.8` (вход при объёме ≥ 80% от среднего).
+- Должен быть включён **только один** из двух (тренд **или** объём), не оба сразу — иначе на истории может быть 0 сделок.
+
+**Вариант Б — через tinker:**
+```bash
+php artisan tinker
+>>> config('trading.trend_filter_enabled')
+=> true   # или false
+>>> config('trading.trend_filter_tolerance_percent')
+=> 0.5    # допуск в %
+>>> config('trading.volume_filter_enabled')
+=> false
+>>> exit
+```
+Если `trend_filter_enabled` = true и `trend_filter_tolerance_percent` > 0 (например 0.5) — пункт «один фильтр с допуском» выполнен. Аналогично для объёма: `volume_filter_enabled` = true и `volume_filter_min_ratio` < 1.0 (например 0.8).
+
+**Итог:** пункт сделан, если в .env есть либо тренд (с допуском), либо объём (с допуском), и после `php artisan config:clear` значения видны в `config('trading.*')`.
+
+---
+
+### 5. position_size_multiplier — как сделать
+
+Сейчас множитель берётся из **.env** (по умолчанию 1, если не задан).
+
+**Добавить в .env:**
+```env
+# Множитель размера позиции: 0.5 = половинный размер по всем ботам (спот, фьючерсы, btc-quote)
+TRADING_POSITION_SIZE_MULTIPLIER=0.5
+```
+Значения: `0.5` — осторожно (половинный размер), `0.7`–`1.0` — при уверенности в результатах. Не ставить больше 1 без понимания риска.
+
+**Проверка:**
+```bash
+php artisan config:clear
+php artisan tinker
+>>> config('trading.position_size_multiplier')
+=> 0.5
+>>> exit
+```
+
+---
+
+### 7. Таймфрейм 4h (по желанию)
+
+Не обязательно. Если делать: в дашборде создать **нового** спот-бота с таймфреймом **4h** по одной паре (например ETHUSDT или BNBUSDT), те же RSI/EMA/SL/TP. Через 1–2 недели сравнить число сделок и PnL с ботом на 1h.
+
+---
+
 ## Вопросы для уточнения:
 
 1. Есть ли уже созданные боты?

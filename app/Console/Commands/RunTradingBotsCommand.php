@@ -395,6 +395,27 @@ class RunTradingBotsCommand extends Command
                     }
                 }
 
+                // Временной фильтр: не открывать BUY в первые/последние минуты свечи
+                $skipFirst = config('trading.time_filter_skip_buy_first_minutes');
+                $skipLast = config('trading.time_filter_skip_buy_last_minutes');
+                if (($skipFirst !== null && $skipFirst > 0) || ($skipLast !== null && $skipLast > 0)) {
+                    [$minutesInto, $candleLen] = $this->getCandleTimeInfo($bot->timeframe);
+                    if ($minutesInto !== null && $candleLen !== null) {
+                        $skip = false;
+                        if ($skipFirst > 0 && $minutesInto < $skipFirst) {
+                            $skip = true;
+                        }
+                        if ($skipLast > 0 && ($candleLen - $minutesInto) < $skipLast) {
+                            $skip = true;
+                        }
+                        if ($skip) {
+                            BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'time_filter');
+                            $this->warn("BUY пропущен: временной фильтр (минута свечи {$minutesInto}/{$candleLen}) (BUY skipped: time filter)");
+                            continue;
+                        }
+                    }
+                }
+
                 // 4. Пауза новых открытий при дневном убытке
                 if ($pauseNewOpensSpot) {
                     BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'pause_daily_loss');
@@ -1153,4 +1174,30 @@ class RunTradingBotsCommand extends Command
         }
     }
 
+    /**
+     * Минуты от начала текущей свечи и длина свечи в минутах по таймфрейму (для временного фильтра).
+     * Возвращает [minutesInto, candleLength] или [null, null] при неизвестном таймфрейме.
+     */
+    protected function getCandleTimeInfo(string $timeframe): array
+    {
+        $now = now();
+        $minute = $now->minute;
+        $hour = $now->hour;
+
+        switch (strtolower($timeframe)) {
+            case '1h':
+                return [$minute, 60];
+            case '4h':
+                return [($hour % 4) * 60 + $minute, 240];
+            case '15m':
+                return [$minute % 15, 15];
+            case '5m':
+                return [$minute % 5, 5];
+            case '1d':
+            case '1D':
+                return [$hour * 60 + $minute, 1440];
+            default:
+                return [null, null];
+        }
+    }
 }

@@ -14,6 +14,7 @@ class OptimizeAllBotsCommand extends Command
                             {--exchange=okx : Биржа (okx или bybit)}
                             {--trend-filter : Включить фильтр тренда в бэктесте}
                             {--volume-filter : Включить фильтр объёма в бэктесте}
+                            {--sl-tp-grid : Перебор пар SL/TP (2/4, 3/6, 4/8, 5/10) в дополнение к RSI; вывод лучших SL/TP по символу}
                             {--output= : Файл для сохранения результатов (JSON)}';
 
     protected $description = 'Оптимизация RSI-порогов по всем ботам: перебор 38/62, 40/60, 42/58, 45/55, вывод лучшей комбинации на символ';
@@ -26,6 +27,14 @@ class OptimizeAllBotsCommand extends Command
         [45, 55],
     ];
 
+    /** Наборы [SL%, TP%] для перебора при --sl-tp-grid */
+    private const SL_TP_SETS = [
+        [2, 4],
+        [3, 6],
+        [4, 8],
+        [5, 10],
+    ];
+
     public function handle(): int
     {
         $period = (int) $this->option('period');
@@ -33,9 +42,10 @@ class OptimizeAllBotsCommand extends Command
         $exchange = $this->option('exchange');
         $trendFilter = $this->option('trend-filter');
         $volumeFilter = $this->option('volume-filter');
+        $slTpGrid = $this->option('sl-tp-grid');
         $outputFile = $this->option('output');
 
-        $this->info('Оптимизация RSI-порогов по всем ботам (Optimizing RSI thresholds for all bots)...');
+        $this->info('Оптимизация RSI-порогов по всем ботам (Optimizing RSI thresholds for all bots)...' . ($slTpGrid ? ' + перебор SL/TP' : ''));
         $this->line('');
 
         $bots = TradingBot::all();
@@ -44,8 +54,9 @@ class OptimizeAllBotsCommand extends Command
             return self::FAILURE;
         }
 
+        $slTpSets = $slTpGrid ? self::SL_TP_SETS : [[null, null]];
+        $totalRuns = $bots->count() * count(self::RSI_THRESHOLD_SETS) * count($slTpSets);
         $allRows = [];
-        $totalRuns = $bots->count() * count(self::RSI_THRESHOLD_SETS);
         $bar = $this->output->createProgressBar($totalRuns);
         $bar->start();
 
@@ -53,56 +64,65 @@ class OptimizeAllBotsCommand extends Command
             $rsiPeriod = (int) ($bot->rsi_period ?? 17);
             $emaPeriod = (int) ($bot->ema_period ?? 10);
             $positionSize = (float) $bot->position_size;
-            $stopLoss = $bot->stop_loss_percent ? (float) $bot->stop_loss_percent : null;
-            $takeProfit = $bot->take_profit_percent ? (float) $bot->take_profit_percent : null;
+            $botSl = $bot->stop_loss_percent ? (float) $bot->stop_loss_percent : null;
+            $botTp = $bot->take_profit_percent ? (float) $bot->take_profit_percent : null;
 
             foreach (self::RSI_THRESHOLD_SETS as [$rsiBuy, $rsiSell]) {
-                $bar->advance();
+                foreach ($slTpSets as $slTp) {
+                    $bar->advance();
+                    $stopLoss = $slTp[0] !== null ? $slTp[0] : $botSl;
+                    $takeProfit = $slTp[1] !== null ? $slTp[1] : $botTp;
 
-                $timeframe = ($timeframeOverride !== null && $timeframeOverride !== '') ? $timeframeOverride : $bot->timeframe;
-                $params = [
-                    'symbol' => $bot->symbol,
-                    '--timeframe' => $timeframe,
-                    '--exchange' => $exchange,
-                    '--period' => $period,
-                    '--rsi-period' => $rsiPeriod,
-                    '--ema-period' => $emaPeriod,
-                    '--rsi-buy-threshold' => $rsiBuy,
-                    '--rsi-sell-threshold' => $rsiSell,
-                    '--position-size' => $positionSize,
-                    '--stop-loss' => $stopLoss ? (string) $stopLoss : '',
-                    '--take-profit' => $takeProfit ? (string) $takeProfit : '',
-                    '--json' => true,
-                ];
-                if ($trendFilter) {
-                    $params['--trend-filter'] = true;
-                    $params['--trend-ema-period'] = (int) (config('trading.trend_filter_ema_period') ?: 50);
-                    $params['--trend-tolerance'] = (float) (config('trading.trend_filter_tolerance_percent') ?: 0);
-                }
-                if ($volumeFilter) {
-                    $params['--volume-filter'] = true;
-                    $params['--volume-period'] = (int) (config('trading.volume_filter_period') ?: 20);
-                    $params['--volume-min-ratio'] = (float) (config('trading.volume_filter_min_ratio') ?: 1.0);
-                }
-                try {
-                    Artisan::call('strategy:backtest', $params);
-
-                    $parsed = $this->parseBacktestJson(trim(Artisan::output()));
-                    if (!$parsed || isset($parsed['error'])) {
-                        continue;
-                    }
-
-                    $allRows[] = [
+                    $timeframe = ($timeframeOverride !== null && $timeframeOverride !== '') ? $timeframeOverride : $bot->timeframe;
+                    $params = [
                         'symbol' => $bot->symbol,
-                        'rsi_buy' => $rsiBuy,
-                        'rsi_sell' => $rsiSell,
-                        'return_percent' => (float) ($parsed['return_percent'] ?? 0),
-                        'total_pnl' => (float) ($parsed['total_pnl'] ?? 0),
-                        'win_rate' => (float) ($parsed['win_rate'] ?? 0),
-                        'total_trades' => (int) ($parsed['total_trades'] ?? 0),
+                        '--timeframe' => $timeframe,
+                        '--exchange' => $exchange,
+                        '--period' => $period,
+                        '--rsi-period' => $rsiPeriod,
+                        '--ema-period' => $emaPeriod,
+                        '--rsi-buy-threshold' => $rsiBuy,
+                        '--rsi-sell-threshold' => $rsiSell,
+                        '--position-size' => $positionSize,
+                        '--stop-loss' => $stopLoss !== null ? (string) $stopLoss : '',
+                        '--take-profit' => $takeProfit !== null ? (string) $takeProfit : '',
+                        '--json' => true,
                     ];
-                } catch (\Throwable $e) {
-                    // skip failed run
+                    if ($trendFilter) {
+                        $params['--trend-filter'] = true;
+                        $params['--trend-ema-period'] = (int) (config('trading.trend_filter_ema_period') ?: 50);
+                        $params['--trend-tolerance'] = (float) (config('trading.trend_filter_tolerance_percent') ?: 0);
+                    }
+                    if ($volumeFilter) {
+                        $params['--volume-filter'] = true;
+                        $params['--volume-period'] = (int) (config('trading.volume_filter_period') ?: 20);
+                        $params['--volume-min-ratio'] = (float) (config('trading.volume_filter_min_ratio') ?: 1.0);
+                    }
+                    try {
+                        Artisan::call('strategy:backtest', $params);
+
+                        $parsed = $this->parseBacktestJson(trim(Artisan::output()));
+                        if (!$parsed || isset($parsed['error'])) {
+                            continue;
+                        }
+
+                        $row = [
+                            'symbol' => $bot->symbol,
+                            'rsi_buy' => $rsiBuy,
+                            'rsi_sell' => $rsiSell,
+                            'return_percent' => (float) ($parsed['return_percent'] ?? 0),
+                            'total_pnl' => (float) ($parsed['total_pnl'] ?? 0),
+                            'win_rate' => (float) ($parsed['win_rate'] ?? 0),
+                            'total_trades' => (int) ($parsed['total_trades'] ?? 0),
+                        ];
+                        if ($slTpGrid) {
+                            $row['sl'] = $stopLoss;
+                            $row['tp'] = $takeProfit;
+                        }
+                        $allRows[] = $row;
+                    } catch (\Throwable $e) {
+                        // skip failed run
+                    }
                 }
             }
         }
@@ -162,34 +182,63 @@ class OptimizeAllBotsCommand extends Command
 
     private function printTable(array $rows): void
     {
-        $this->line(str_repeat('=', 100));
+        $hasSlTp = !empty($rows) && isset($rows[0]['sl']);
+        $this->line(str_repeat('=', $hasSlTp ? 120 : 100));
         $this->info('ВСЕ РЕЗУЛЬТАТЫ (ALL RESULTS)');
-        $this->line(str_repeat('=', 100));
-        $this->line(sprintf(
-            "%-10s | %-8s | %-12s | %-12s | %-10s | %-6s",
-            'Symbol',
-            'RSI B/S',
-            'Return (%)',
-            'Total PnL',
-            'Win Rate %',
-            'Trades'
-        ));
-        $this->line(str_repeat('-', 100));
+        $this->line(str_repeat('=', $hasSlTp ? 120 : 100));
+        if ($hasSlTp) {
+            $this->line(sprintf(
+                "%-10s | %-8s | %-6s | %-12s | %-12s | %-10s | %-6s",
+                'Symbol',
+                'RSI B/S',
+                'SL/TP',
+                'Return (%)',
+                'Total PnL',
+                'Win Rate %',
+                'Trades'
+            ));
+        } else {
+            $this->line(sprintf(
+                "%-10s | %-8s | %-12s | %-12s | %-10s | %-6s",
+                'Symbol',
+                'RSI B/S',
+                'Return (%)',
+                'Total PnL',
+                'Win Rate %',
+                'Trades'
+            ));
+        }
+        $this->line(str_repeat('-', $hasSlTp ? 120 : 100));
 
         foreach ($rows as $r) {
             $pnl = number_format($r['total_pnl'], 2);
             $ret = number_format($r['return_percent'], 2);
             $wr = number_format($r['win_rate'], 1);
-            $this->line(sprintf(
-                "%-10s | %d/%-6d | %12s | %12s | %10s | %6d",
-                $r['symbol'],
-                $r['rsi_buy'],
-                $r['rsi_sell'],
-                $ret,
-                $pnl,
-                $wr,
-                $r['total_trades']
-            ));
+            if ($hasSlTp) {
+                $slTp = ($r['sl'] ?? '') . '/' . ($r['tp'] ?? '');
+                $this->line(sprintf(
+                    "%-10s | %d/%-6d | %-6s | %12s | %12s | %10s | %6d",
+                    $r['symbol'],
+                    $r['rsi_buy'],
+                    $r['rsi_sell'],
+                    $slTp,
+                    $ret,
+                    $pnl,
+                    $wr,
+                    $r['total_trades']
+                ));
+            } else {
+                $this->line(sprintf(
+                    "%-10s | %d/%-6d | %12s | %12s | %10s | %6d",
+                    $r['symbol'],
+                    $r['rsi_buy'],
+                    $r['rsi_sell'],
+                    $ret,
+                    $pnl,
+                    $wr,
+                    $r['total_trades']
+                ));
+            }
         }
         $this->line('');
     }
@@ -204,17 +253,19 @@ class OptimizeAllBotsCommand extends Command
             }
         }
 
+        $hasSlTp = !empty($rows) && isset($rows[0]['sl']);
         $this->line(str_repeat('=', 80));
-        $this->info('ЛУЧШИЕ RSI-ПОРОГИ ПО СИМВОЛУ (BEST RSI THRESHOLDS PER SYMBOL)');
+        $this->info($hasSlTp ? 'ЛУЧШИЕ RSI + SL/TP ПО СИМВОЛУ (BEST RSI & SL/TP PER SYMBOL)' : 'ЛУЧШИЕ RSI-ПОРОГИ ПО СИМВОЛУ (BEST RSI THRESHOLDS PER SYMBOL)');
         $this->line(str_repeat('=', 80));
         $this->line('');
 
         foreach ($bySymbol as $symbol => $best) {
-            $this->line("  {$symbol}: RSI {$best['rsi_buy']}/{$best['rsi_sell']}  →  Return {$best['return_percent']}%  |  PnL {$best['total_pnl']} USDT  |  Win Rate {$best['win_rate']}%  |  Trades {$best['total_trades']}");
+            $slTp = isset($best['sl']) ? "  SL/TP {$best['sl']}%/{$best['tp']}%" : '';
+            $this->line("  {$symbol}: RSI {$best['rsi_buy']}/{$best['rsi_sell']}{$slTp}  →  Return {$best['return_percent']}%  |  PnL {$best['total_pnl']} USDT  |  Win Rate {$best['win_rate']}%  |  Trades {$best['total_trades']}");
         }
 
         $this->line('');
-        $this->info('Рекомендация: применить указанные RSI-пороги в стратегии для соответствующего символа (или глобально).');
+        $this->info('Рекомендация: применить указанные RSI (и при --sl-tp-grid — SL/TP) в дашборде по каждому боту.');
         $this->line('Важно: перед реальной торговлей повторить бэктест на более длинном периоде и проверить устойчивость.');
     }
 }
