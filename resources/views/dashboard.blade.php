@@ -55,9 +55,9 @@
                 <div class="px-4 py-3 flex flex-row items-center gap-3 flex-nowrap">
                     <span class="text-sm font-medium text-gray-700 shrink-0">{{ __('dashboard.period') }}:</span>
                     <div class="flex flex-row gap-2 flex-nowrap">
-                        <a href="{{ route('dashboard', ['period' => 7]) }}" class="shrink-0 px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors {{ ($period ?? 30) == 7 ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-400 hover:bg-indigo-50 hover:border-indigo-400' }}">7 {{ __('dashboard.days') }}</a>
-                        <a href="{{ route('dashboard', ['period' => 30]) }}" class="shrink-0 px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors {{ ($period ?? 30) == 30 ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-400 hover:bg-indigo-50 hover:border-indigo-400' }}">30 {{ __('dashboard.days') }}</a>
-                        <a href="{{ route('dashboard', ['period' => 90]) }}" class="shrink-0 px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors {{ ($period ?? 30) == 90 ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-400 hover:bg-indigo-50 hover:border-indigo-400' }}">90 {{ __('dashboard.days') }}</a>
+                        <a href="{{ route('dashboard', ['period' => 7]) }}" class="shrink-0 px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors {{ ($period ?? 30) == 7 ? 'bg-indigo-200 text-gray-900 border-indigo-600' : 'bg-white text-gray-800 border-gray-400 hover:bg-indigo-50 hover:border-indigo-400' }}">7 {{ __('dashboard.days') }}</a>
+                        <a href="{{ route('dashboard', ['period' => 30]) }}" class="shrink-0 px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors {{ ($period ?? 30) == 30 ? 'bg-indigo-200 text-gray-900 border-indigo-600' : 'bg-white text-gray-800 border-gray-400 hover:bg-indigo-50 hover:border-indigo-400' }}">30 {{ __('dashboard.days') }}</a>
+                        <a href="{{ route('dashboard', ['period' => 90]) }}" class="shrink-0 px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors {{ ($period ?? 30) == 90 ? 'bg-indigo-200 text-gray-900 border-indigo-600' : 'bg-white text-gray-800 border-gray-400 hover:bg-indigo-50 hover:border-indigo-400' }}">90 {{ __('dashboard.days') }}</a>
                     </div>
                 </div>
             </div>
