@@ -363,13 +363,18 @@ class TelegramService
     }
 
     /**
-     * Отправить уведомление о HOLD сигнале (No action taken)
+     * Отправить уведомление о HOLD сигнале (No action taken).
+     * Используется для спота, фьючерсов и BTC-quote — одна структура: символ, цена, сигнал, RSI, EMA.
+     *
+     * @param  string  $priceUnit  'USD' — цена как $X; 'BTC' — цена как X BTC (для btc-quote)
      */
-    public function notifyHold(string $symbol, float $price, string $signal, float $rsi = null, float $ema = null): void
+    public function notifyHold(string $symbol, float $price, string $signal, float $rsi = null, float $ema = null, string $priceUnit = 'USD'): void
     {
         $message = "⏸️ <b>ДЕЙСТВИЙ НЕ ПРЕДПРИНЯТО (NO ACTION TAKEN)</b>\n\n";
         $message .= "Символ (Symbol): <b>{$symbol}</b>\n";
-        $message .= "Цена (Price): <b>\${$price}</b>\n";
+        $message .= $priceUnit === 'BTC'
+            ? "Цена (Price): <b>" . round($price, 8) . " BTC</b>\n"
+            : "Цена (Price): <b>\${$price}</b>\n";
         $message .= "Сигнал (Signal): <b>{$signal}</b>\n";
         if ($rsi !== null) {
             $message .= "RSI: <b>" . round($rsi, 2) . "</b>\n";

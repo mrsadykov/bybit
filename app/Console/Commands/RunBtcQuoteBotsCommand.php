@@ -140,11 +140,13 @@ class RunBtcQuoteBotsCommand extends Command
             if ($signal === 'BUY') {
                 if ($hasPosition) {
                     BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'position_already_open');
+                    $telegram->notifySkip('BUY', 'Позиция уже открыта (Position already open)', $bot->symbol);
                     $this->line("Позиция уже открыта (Position already open), пропуск BUY");
                     continue;
                 }
                 if ($pauseNewOpensBtcQuote) {
                     BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'pause_daily_loss');
+                    $telegram->notifySkip('BUY', "Пауза: дневной убыток по BTC-quote (Pause: daily loss)", $bot->symbol);
                     $this->warn("BUY пропущен: пауза из-за дневного убытка по BTC-quote (PnL сегодня ≈ {$dailyPnLBtcQuoteUsdt} USDT)");
                     continue;
                 }
@@ -157,6 +159,7 @@ class RunBtcQuoteBotsCommand extends Command
                         ->sum('realized_pnl_btc');
                     if ($botDailyPnLBtc <= -$maxDailyLossBtc) {
                         BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'bot_max_daily_loss');
+                        $telegram->notifySkip('BUY', 'Дневной убыток по боту достиг лимита (Bot daily loss limit)', $bot->symbol);
                         $this->warn("BUY пропущен: дневной убыток по боту {$bot->symbol} достиг лимита ({$botDailyPnLBtc} BTC)");
                         continue;
                     }
@@ -177,6 +180,7 @@ class RunBtcQuoteBotsCommand extends Command
                     }
                     if ($losingStreak >= $maxLosingStreak) {
                         BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'bot_max_losing_streak');
+                        $telegram->notifySkip('BUY', "Серия убытков по боту (Losing streak: {$losingStreak})", $bot->symbol);
                         $this->warn("BUY пропущен: серия убытков по боту {$bot->symbol} ({$losingStreak})");
                         continue;
                     }
@@ -186,6 +190,7 @@ class RunBtcQuoteBotsCommand extends Command
                     $lastOpen = BtcQuoteTrade::where('btc_quote_bot_id', $bot->id)->where('side', 'BUY')->orderByDesc('created_at')->first();
                     if ($lastOpen && $lastOpen->created_at->diffInMinutes(now(), false) < $minMinutes) {
                         BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'cooldown_opens');
+                        $telegram->notifySkip('BUY', "Кулдаун между открытиями (Cooldown {$minMinutes} min)", $bot->symbol);
                         $this->warn("BUY пропущен: кулдаун {$minMinutes} мин (BTC-quote)");
                         continue;
                     }
@@ -196,12 +201,14 @@ class RunBtcQuoteBotsCommand extends Command
                 $requiredBtc = (float) $bot->position_size_btc * $multiplier;
                 if ($balanceBtc < $requiredBtc && ! $bot->dry_run) {
                     BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'insufficient_btc');
+                    $telegram->notifySkip('BUY', "Недостаточно BTC (Insufficient BTC). Доступно: {$balanceBtc}, нужно: {$requiredBtc}", $bot->symbol);
                     $this->warn("Недостаточно BTC (Insufficient BTC). Доступно: {$balanceBtc}, нужно: {$requiredBtc}");
                     continue;
                 }
 
                 if ($bot->dry_run) {
                     BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'BUY', $priceBtc, $lastRsi, $lastEma, 'dry_run');
+                    $telegram->notifySkip('BUY', "ТЕСТОВЫЙ РЕЖИМ (dry run). Сигнал BUY, RSI: " . round($lastRsi, 2) . ", EMA: " . round($lastEma, 2), $bot->symbol);
                     $this->info("[DRY RUN] BUY на {$requiredBtc} BTC по {$priceBtc} BTC");
                     continue;
                 }
@@ -239,6 +246,7 @@ class RunBtcQuoteBotsCommand extends Command
 
                 if ($bot->dry_run) {
                     BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SELL', $priceBtc, $lastRsi, $lastEma, 'dry_run');
+                    $telegram->notifySkip('SELL', "ТЕСТОВЫЙ РЕЖИМ (dry run). Сигнал SELL, RSI: " . round($lastRsi, 2) . ", EMA: " . round($lastEma, 2), $bot->symbol);
                     $this->info("[DRY RUN] SELL {$sellQty} по {$priceBtc} BTC");
                     continue;
                 }
@@ -267,7 +275,10 @@ class RunBtcQuoteBotsCommand extends Command
                     $this->error('Ошибка размещения ордера SELL: ' . $e->getMessage());
                 }
             } else {
-                BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'HOLD', $priceBtc, $lastRsi, $lastEma, $signal === 'SELL' ? 'no_position' : 'strategy_hold');
+                // HOLD или SELL без позиции — уведомление как у спота: символ, цена (BTC), сигнал, RSI, EMA
+                $holdReason = $signal === 'SELL' ? 'no_position' : 'strategy_hold';
+                BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'HOLD', $priceBtc, $lastRsi, $lastEma, $holdReason);
+                $telegram->notifyHold($bot->symbol, $priceBtc, $holdReason, $lastRsi, $lastEma, 'BTC');
             }
             } catch (\Throwable $e) {
                 logger()->error('btc-quote:run bot failed', ['bot_id' => $bot->id, 'symbol' => $bot->symbol, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);

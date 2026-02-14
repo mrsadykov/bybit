@@ -130,11 +130,13 @@ class RunFuturesBotsCommand extends Command
             if ($signal === 'BUY') {
                 if ($hasPosition) {
                     BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'position_already_open');
+                    $telegram->notifySkip('BUY', 'Позиция уже открыта (Position already open)', $bot->symbol);
                     $this->line("Позиция уже открыта (Position already open), пропуск BUY");
                     continue;
                 }
                 if ($pauseNewOpensFutures) {
                     BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'pause_daily_loss');
+                    $telegram->notifySkip('BUY', "Пауза: дневной убыток по фьючерсам (Pause: daily loss, PnL: {$dailyPnLFutures} USDT)", $bot->symbol);
                     $this->warn("BUY пропущен: пауза из-за дневного убытка по фьючерсам (PnL сегодня: {$dailyPnLFutures} USDT)");
                     continue;
                 }
@@ -147,6 +149,7 @@ class RunFuturesBotsCommand extends Command
                         ->sum('realized_pnl');
                     if ($botDailyPnL <= -$maxDailyLoss) {
                         BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'bot_max_daily_loss');
+                        $telegram->notifySkip('BUY', 'Дневной убыток по боту достиг лимита (Bot daily loss limit)', $bot->symbol);
                         $this->warn("BUY пропущен: дневной убыток по боту {$bot->symbol} достиг лимита ({$botDailyPnL} USDT)");
                         continue;
                     }
@@ -167,6 +170,7 @@ class RunFuturesBotsCommand extends Command
                     }
                     if ($losingStreak >= $maxLosingStreak) {
                         BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'bot_max_losing_streak');
+                        $telegram->notifySkip('BUY', "Серия убытков по боту (Losing streak: {$losingStreak})", $bot->symbol);
                         $this->warn("BUY пропущен: серия убытков по боту {$bot->symbol} ({$losingStreak})");
                         continue;
                     }
@@ -176,6 +180,7 @@ class RunFuturesBotsCommand extends Command
                     $lastOpen = FuturesTrade::where('futures_bot_id', $bot->id)->where('side', 'BUY')->whereNotNull('filled_at')->orderByDesc('filled_at')->first();
                     if ($lastOpen && $lastOpen->filled_at && $lastOpen->filled_at->diffInMinutes(now(), false) < $minMinutes) {
                         BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'cooldown_opens');
+                        $telegram->notifySkip('BUY', "Кулдаун между открытиями (Cooldown {$minMinutes} min)", $bot->symbol);
                         $this->warn("BUY пропущен: кулдаун {$minMinutes} мин (Futures)");
                         continue;
                     }
@@ -192,6 +197,7 @@ class RunFuturesBotsCommand extends Command
                 $marginRequired = (float) $bot->position_size_usdt * $multiplier;
                 if ($balance < $marginRequired && ! $bot->dry_run) {
                     BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'insufficient_margin');
+                    $telegram->notifySkip('BUY', "Недостаточно маржи (Insufficient margin). Доступно: {$balance}, нужно: {$marginRequired}", $bot->symbol);
                     $this->warn("Недостаточно маржи (Insufficient margin). Доступно: {$balance}, нужно: {$marginRequired}");
                     continue;
                 }
@@ -204,6 +210,7 @@ class RunFuturesBotsCommand extends Command
 
                 if ($bot->dry_run) {
                     BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'BUY', $price, $lastRsi, $lastEma, 'dry_run');
+                    $telegram->notifySkip('BUY', "ТЕСТОВЫЙ РЕЖИМ (dry run). Сигнал BUY, RSI: " . round($lastRsi, 2) . ", EMA: " . round($lastEma, 2), $bot->symbol);
                     $this->info("[DRY RUN] BUY {$contracts} контрактов по {$price}");
                     continue;
                 }
@@ -253,6 +260,7 @@ class RunFuturesBotsCommand extends Command
 
                 if ($bot->dry_run) {
                     BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'SELL', $price, $lastRsi, $lastEma, 'dry_run');
+                    $telegram->notifySkip('SELL', "ТЕСТОВЫЙ РЕЖИМ (dry run). Сигнал SELL, RSI: " . round($lastRsi, 2) . ", EMA: " . round($lastEma, 2), $bot->symbol);
                     $this->info("[DRY RUN] SELL {$posSize} контрактов по {$price}");
                     continue;
                 }
@@ -280,8 +288,10 @@ class RunFuturesBotsCommand extends Command
                     $this->error('Ошибка размещения ордера SELL: ' . $e->getMessage());
                 }
             } else {
-                // HOLD или SELL без позиции
-                BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'HOLD', $price, $lastRsi, $lastEma, $signal === 'SELL' ? 'no_position' : 'strategy_hold');
+                // HOLD или SELL без позиции — уведомление как у спота: символ, цена, сигнал, RSI, EMA
+                $holdReason = $signal === 'SELL' ? 'no_position' : 'strategy_hold';
+                BotDecisionLog::log('futures', $bot->id, $bot->symbol, 'HOLD', $price, $lastRsi, $lastEma, $holdReason);
+                $telegram->notifyHold($bot->symbol, $price, $holdReason, $lastRsi, $lastEma);
             }
             } catch (\Throwable $e) {
                 logger()->error('futures:run bot failed', ['bot_id' => $bot->id, 'symbol' => $bot->symbol, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
