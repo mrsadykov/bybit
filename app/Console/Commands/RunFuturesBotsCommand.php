@@ -43,7 +43,7 @@ class RunFuturesBotsCommand extends Command
         }
 
         $telegram = new TelegramService();
-        $telegram->notifyFuturesRunStart($bots->count());
+        $telegram->notifyFuturesRunStart($bots->count(), $bots);
 
         // Пауза новых открытий при дневном убытке (тот же порог, что и для спота)
         $pauseThreshold = config('trading.pause_new_opens_daily_loss_usdt');

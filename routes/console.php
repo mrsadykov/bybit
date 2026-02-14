@@ -9,7 +9,8 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Планировщик задач
-Schedule::command('bots:run')->everyFiveMinutes();
+// Один запуск: спот + фьючерсы + btc-quote и одно сводное сообщение в Telegram
+Schedule::command('trading:run-all')->everyFiveMinutes();
 Schedule::command('orders:sync')->everyMinute();
 Schedule::command('telegram:heartbeat')->everyFiveMinutes();
 Schedule::command('telegram:daily-stats')->dailyAt('09:00');
@@ -17,9 +18,6 @@ Schedule::command('telegram:daily-stats')->dailyAt('09:00');
 Schedule::command('positions:close-small')->dailyAt('17:26')->withoutOverlapping();
 // Анализ производительности каждый день в 00:00
 Schedule::command('stats:analyze --days=30')->dailyAt('00:00')->withoutOverlapping();
-
-Schedule::command('futures:run')->everyFiveMinutes();
-Schedule::command('btc-quote:run')->everyFiveMinutes();
 
 // Health check: OKX API, Telegram, последний запуск ботов; при сбое — алерт в Telegram
 Schedule::command('health:check')->everyFifteenMinutes();

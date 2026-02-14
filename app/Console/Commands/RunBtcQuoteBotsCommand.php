@@ -43,7 +43,7 @@ class RunBtcQuoteBotsCommand extends Command
         }
 
         $telegram = new TelegramService();
-        $telegram->notifyBtcQuoteRunStart($bots->count());
+        $telegram->notifyBtcQuoteRunStart($bots->count(), $bots);
 
         $this->syncPendingBtcQuoteTrades($bots);
 

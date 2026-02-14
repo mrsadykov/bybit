@@ -274,7 +274,7 @@ class RunTradingBotsCommand extends Command
                                 if (!$passesMin) {
                                     BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'quantity_too_small_sltp');
                                     $this->warn("Количество {$btcQty} {$baseCoin} меньше минимума {$minQty} {$baseCoin} — пропуск SELL ({$reason}) (Quantity {$btcQty} {$baseCoin} is less than minimum {$minQty} {$baseCoin} — skip SELL ({$reason}))");
-                                    $telegram->notifySkip('SELL', "Количество слишком мало для {$reason} (Quantity too small: {$btcQty} < {$minQty})");
+                                    $telegram->notifySkip('SELL', "Количество слишком мало для {$reason} (Quantity too small: {$btcQty} < {$minQty})", $bot->symbol);
                                     continue;
                                 }
 
@@ -360,7 +360,7 @@ class RunTradingBotsCommand extends Command
                 if (! $positionManager->canBuy()) {
                     BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'position_already_open');
                     $this->warn('BUY пропущен: позиция уже открыта (BUY skipped: position already open)');
-                    $telegram->notifySkip('BUY', 'Позиция уже открыта (Position already open)');
+                    $telegram->notifySkip('BUY', 'Позиция уже открыта (Position already open)', $bot->symbol);
                     continue;
                 }
 
@@ -465,7 +465,7 @@ class RunTradingBotsCommand extends Command
                 if ($usdtAmount <= 0) {
                     BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'invalid_position_size');
                     $this->warn('Неверный размер позиции (Invalid position size)');
-                    $telegram->notifySkip('BUY', 'Неверный размер позиции (Invalid position size)');
+                    $telegram->notifySkip('BUY', 'Неверный размер позиции (Invalid position size)', $bot->symbol);
                     continue;
                 }
 
@@ -474,7 +474,7 @@ class RunTradingBotsCommand extends Command
                 if ($usdtAmount < $minNotional) {
                     BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'amount_below_min');
                     $this->warn("BUY пропущен: сумма {$usdtAmount} USDT меньше минимума {$minNotional} USDT (BUY skipped: amount {$usdtAmount} USDT is less than minimum {$minNotional} USDT)");
-                    $telegram->notifySkip('BUY', "Сумма {$usdtAmount} USDT меньше минимума {$minNotional} USDT (Amount {$usdtAmount} USDT is less than minimum {$minNotional} USDT)");
+                    $telegram->notifySkip('BUY', "Сумма {$usdtAmount} USDT меньше минимума {$minNotional} USDT (Amount {$usdtAmount} USDT is less than minimum {$minNotional} USDT)", $bot->symbol);
                     continue;
                 }
 
@@ -492,7 +492,7 @@ class RunTradingBotsCommand extends Command
                                 'required' => $usdtAmount,
                                 'available' => $balance,
                             ]);
-                            $telegram->notifySkip('BUY', "Недостаточно баланса. Требуется: {$usdtAmount} USDT, Доступно: {$balance} USDT (Insufficient balance. Required: {$usdtAmount} USDT, Available: {$balance} USDT)");
+                            $telegram->notifySkip('BUY', "Недостаточно баланса. Требуется: {$usdtAmount} USDT, Доступно: {$balance} USDT (Insufficient balance. Required: {$usdtAmount} USDT, Available: {$balance} USDT)", $bot->symbol);
                             continue;
                         }
                     } catch (\Throwable $e) {
@@ -700,7 +700,7 @@ class RunTradingBotsCommand extends Command
                 if (! $buy) {
                     BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'no_open_buy');
                     $this->line('Нет открытой BUY позиции — пропуск SELL (No open BUY position — skip SELL)');
-                    $telegram->notifySkip('SELL', 'Нет открытой BUY позиции (No open BUY position)');
+                    $telegram->notifySkip('SELL', 'Нет открытой BUY позиции (No open BUY position)', $bot->symbol);
                     continue;
                 }
 
@@ -714,7 +714,7 @@ class RunTradingBotsCommand extends Command
                 if ($hasPendingSell) {
                     BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'sell_in_progress');
                     $this->line('SELL уже выполняется — пропуск (SELL already in progress — skip)');
-                    $telegram->notifySkip('SELL', 'SELL уже выполняется (SELL already in progress)');
+                    $telegram->notifySkip('SELL', 'SELL уже выполняется (SELL already in progress)', $bot->symbol);
                     continue;
                 }
 
@@ -734,7 +734,7 @@ class RunTradingBotsCommand extends Command
                 if ($btcQty <= 0) {
                     BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'no_balance');
                     $this->line('Баланс недоступен — пропуск SELL (No balance available — skip SELL)');
-                    $telegram->notifySkip('SELL', 'Баланс недоступен (No balance available)');
+                    $telegram->notifySkip('SELL', 'Баланс недоступен (No balance available)', $bot->symbol);
                     continue;
                 }
 
@@ -743,7 +743,7 @@ class RunTradingBotsCommand extends Command
                 if (!$passesMin) {
                     BotDecisionLog::log('spot', $bot->id, $bot->symbol, 'SKIP', $price, $lastRsi, $lastEma, 'quantity_too_small');
                     $this->warn("Количество {$btcQty} {$baseCoin} меньше минимума {$minQty} {$baseCoin} — пропуск SELL (Quantity {$btcQty} {$baseCoin} is less than minimum {$minQty} {$baseCoin} — skip SELL)");
-                    $telegram->notifySkip('SELL', "Количество слишком мало (Quantity too small: {$btcQty} < {$minQty})");
+                    $telegram->notifySkip('SELL', "Количество слишком мало (Quantity too small: {$btcQty} < {$minQty})", $bot->symbol);
                     continue;
                 }
 

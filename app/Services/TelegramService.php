@@ -9,10 +9,45 @@ use Illuminate\Support\Facades\Log;
 
 class TelegramService
 {
+    /** Режим «одно сообщение за цикл»: уведомления накапливаются в batch и отправляются одним вызовом sendBatch(). */
+    private static bool $batchMode = false;
+
+    /** Накопленные строки для одного сообщения (разделы разделяются через —————). */
+    private static array $batchLines = [];
+
     private ?string $botToken;
     private ?string $chatId;
     private ?string $healthBotToken;
     private ?string $healthChatId;
+
+    public static function setBatchMode(bool $on): void
+    {
+        self::$batchMode = $on;
+        if (! $on) {
+            self::$batchLines = [];
+        }
+    }
+
+    public static function getBatchMode(): bool
+    {
+        return self::$batchMode;
+    }
+
+    /**
+     * Отправить накопленное сообщение и очистить буфер. Вызывать в конце цикла (например из trading:run-all).
+     */
+    public function sendBatch(): bool
+    {
+        if (self::$batchLines === []) {
+            return true;
+        }
+        $separator = "\n\n—————\n\n";
+        $message = implode($separator, self::$batchLines);
+        self::$batchLines = [];
+        self::$batchMode = false;
+
+        return $this->sendMessage($message);
+    }
 
     public function __construct()
     {
@@ -156,11 +191,29 @@ class TelegramService
     }
 
     /**
-     * Отправить уведомление о попытке (пропуске) сделки
+     * Отправить уведомление о попытке (пропуске) сделки.
+     *
+     * @param  string  $action  BUY или SELL
+     * @param  string  $reason  Причина пропуска
+     * @param  string|null  $symbol  Торговая пара (например BTCUSDT)
      */
-    public function notifySkip(string $action, string $reason): void
+    public function notifySkip(string $action, string $reason, ?string $symbol = null): void
     {
+        $symbolLine = $symbol !== null ? "Символ (Symbol): <b>{$symbol}</b>\n" : '';
+
+        if (self::$batchMode) {
+            $line = "⚠️ <b>СДЕЛКА ПРОПУЩЕНА (TRADE SKIPPED)</b>\n\n";
+            $line .= $symbolLine;
+            $line .= "Действие (Action): <b>{$action}</b>\n";
+            $line .= "Причина (Reason): {$reason}\n";
+            $line .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+            self::$batchLines[] = $line;
+
+            return;
+        }
+
         $message = "⚠️ <b>СДЕЛКА ПРОПУЩЕНА (TRADE SKIPPED)</b>\n\n";
+        $message .= $symbolLine;
         $message .= "Действие (Action): <b>{$action}</b>\n";
         $message .= "Причина (Reason): {$reason}\n";
         $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
@@ -204,26 +257,46 @@ class TelegramService
     }
 
     /**
-     * Отправить уведомление о запуске команды
+     * Отправить уведомление о запуске спотовых ботов.
      */
     public function notifyBotRunStart(int $botCount): void
     {
-        $message = "🚀 <b>ЗАПУСК БОТОВ (BOTS RUN STARTED)</b>\n\n";
-        $message .= "Активных ботов (Active bots): <b>{$botCount}</b>\n";
+        $message = "🚀 <b>СПОТ: ЗАПУСК БОТОВ (SPOT BOTS RUN STARTED)</b>\n\n";
+        $message .= "Спотовые боты (Spot bots): <b>{$botCount}</b>\n";
         $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
 
+        if (self::$batchMode) {
+            self::$batchLines[] = $message;
+
+            return;
+        }
         $this->sendMessage($message);
     }
 
     /**
-     * Запуск фьючерсных ботов (Futures bots run started)
+     * Запуск фьючерсных ботов (Futures bots run started).
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\FuturesBot>|array  $bots  Коллекция ботов для вывода пар и режима (dry_run / real)
      */
-    public function notifyFuturesRunStart(int $botCount): void
+    public function notifyFuturesRunStart(int $botCount, $bots = []): void
     {
-        $message = "📈 <b>ЗАПУСК ФЬЮЧЕРСНЫХ БОТОВ (FUTURES BOTS RUN STARTED)</b>\n\n";
+        $message = "📈 <b>ФЬЮЧЕРСЫ: ЗАПУСК БОТОВ (FUTURES BOTS RUN STARTED)</b>\n\n";
         $message .= "Активных ботов (Active bots): <b>{$botCount}</b>\n";
+        if (is_countable($bots) && count($bots) > 0) {
+            $pairs = [];
+            foreach ($bots as $bot) {
+                $mode = ($bot->dry_run ?? true) ? 'dry_run' : 'real';
+                $pairs[] = "{$bot->symbol} ({$mode})";
+            }
+            $message .= "Пары и режим (Pairs & mode): " . implode(', ', $pairs) . "\n";
+        }
         $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
 
+        if (self::$batchMode) {
+            self::$batchLines[] = $message;
+
+            return;
+        }
         $this->sendMessage($message);
     }
 
@@ -246,13 +319,29 @@ class TelegramService
     }
 
     /**
-     * Запуск ботов за BTC (BTC-quote bots run started)
+     * Запуск ботов за BTC (BTC-quote bots run started).
+     *
+     * @param  \Illuminate\Support\Collection<int, \App\Models\BtcQuoteBot>|array  $bots  Коллекция ботов для вывода пар и режима (dry_run / real)
      */
-    public function notifyBtcQuoteRunStart(int $botCount): void
+    public function notifyBtcQuoteRunStart(int $botCount, $bots = []): void
     {
-        $message = "₿ <b>ЗАПУСК БОТОВ ЗА BTC (BTC-QUOTE BOTS RUN STARTED)</b>\n\n";
+        $message = "₿ <b>BTC-QUOTE: ЗАПУСК БОТОВ (BTC-QUOTE BOTS RUN STARTED)</b>\n\n";
         $message .= "Активных ботов (Active bots): <b>{$botCount}</b>\n";
+        if (is_countable($bots) && count($bots) > 0) {
+            $pairs = [];
+            foreach ($bots as $bot) {
+                $mode = ($bot->dry_run ?? true) ? 'dry_run' : 'real';
+                $pairs[] = "{$bot->symbol} ({$mode})";
+            }
+            $message .= "Пары и режим (Pairs & mode): " . implode(', ', $pairs) . "\n";
+        }
         $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
+
+        if (self::$batchMode) {
+            self::$batchLines[] = $message;
+
+            return;
+        }
         $this->sendMessage($message);
     }
 
@@ -282,16 +371,19 @@ class TelegramService
         $message .= "Символ (Symbol): <b>{$symbol}</b>\n";
         $message .= "Цена (Price): <b>\${$price}</b>\n";
         $message .= "Сигнал (Signal): <b>{$signal}</b>\n";
-        
         if ($rsi !== null) {
             $message .= "RSI: <b>" . round($rsi, 2) . "</b>\n";
         }
         if ($ema !== null) {
             $message .= "EMA: <b>" . round($ema, 2) . "</b>\n";
         }
-        
         $message .= "Время (Time): " . now()->format('Y-m-d H:i:s');
 
+        if (self::$batchMode) {
+            self::$batchLines[] = $message;
+
+            return;
+        }
         $this->sendMessage($message);
     }
 
