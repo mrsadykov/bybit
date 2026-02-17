@@ -333,6 +333,10 @@ class BacktestStrategyCommand extends Command
             }
 
             // Применяем стратегию (с фильтром MACD при --use-macd-filter)
+            // RSI и EMA возвращают массивы — передаём последнее значение (текущая свеча)
+            $lastRsi = is_array($rsi) ? end($rsi) : $rsi;
+            $lastEma = is_array($ema) ? end($ema) : $ema;
+
             if ($useMacdFilter) {
                 try {
                     $signal = RsiEmaStrategy::decide($historicalCloses, $rsiPeriod, $emaPeriod, $rsiBuyThreshold, $rsiSellThreshold, true, 12, 26, 9, $emaTolerancePercent, $emaToleranceDeepPercent, $rsiDeepOversold);
@@ -340,7 +344,7 @@ class BacktestStrategyCommand extends Command
                     $signal = 'HOLD';
                 }
             } else {
-                $signal = $this->getSignal($rsi, $ema, $currentPrice, $rsiBuyThreshold, $rsiSellThreshold, $emaTolerancePercent, $emaToleranceDeepPercent, $rsiDeepOversold);
+                $signal = $this->getSignal($lastRsi, $lastEma, $currentPrice, $rsiBuyThreshold, $rsiSellThreshold, $emaTolerancePercent, $emaToleranceDeepPercent, $rsiDeepOversold);
             }
 
             // BUY сигнал

@@ -201,7 +201,9 @@ class RunBtcQuoteBotsCommand extends Command
                 $requiredBtc = (float) $bot->position_size_btc * $multiplier;
                 if ($balanceBtc < $requiredBtc && ! $bot->dry_run) {
                     BotDecisionLog::log('btc_quote', $bot->id, $bot->symbol, 'SKIP', $priceBtc, $lastRsi, $lastEma, 'insufficient_btc');
-                    $telegram->notifySkip('BUY', "Недостаточно BTC (Insufficient BTC). Доступно: {$balanceBtc}, нужно: {$requiredBtc}", $bot->symbol);
+                    $balanceStr = $balanceBtc < 0.0001 ? number_format($balanceBtc, 8) : (string) $balanceBtc;
+                    $reqStr = $requiredBtc < 0.0001 ? number_format($requiredBtc, 8) : (string) $requiredBtc;
+                    $telegram->notifySkip('BUY', "Недостаточно BTC (Insufficient BTC). Доступно: {$balanceStr} BTC, нужно: {$reqStr} BTC", $bot->symbol);
                     $this->warn("Недостаточно BTC (Insufficient BTC). Доступно: {$balanceBtc}, нужно: {$requiredBtc}");
                     continue;
                 }
