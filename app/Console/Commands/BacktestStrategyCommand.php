@@ -109,16 +109,15 @@ class BacktestStrategyCommand extends Command
         }
         try {
             $trendFilterEnabled = $this->option('trend-filter');
-        $trendEmaForLimit = $trendFilterEnabled ? (int) $this->option('trend-ema-period') : 0;
-        $limit = min($period + max(50, $trendEmaForLimit), 1000); // больше свечей при фильтре тренда
-            $candlesResponse = $this->fetchCandlesPublic($exchangeName, $symbol, $timeframe, $limit);
-            
-            // Обрабатываем разные форматы ответов
-            $candles = [];
-            if ($exchangeName === 'bybit') {
-                $candles = $candlesResponse['result']['list'] ?? [];
-            } elseif ($exchangeName === 'okx') {
-                $candles = $candlesResponse['data'] ?? [];
+            $trendEmaForLimit = $trendFilterEnabled ? (int) $this->option('trend-ema-period') : 0;
+            $limit = min($period + max(50, $trendEmaForLimit), 1000); // больше свечей при фильтре тренда
+
+            // OKX отдаёт макс. 300 свечей за запрос — подгружаем по страницам
+            if ($exchangeName === 'okx') {
+                $candles = $this->fetchCandlesPublicOkxPaginated($symbol, $timeframe, $limit);
+            } else {
+                $candlesResponse = $this->fetchCandlesPublic($exchangeName, $symbol, $timeframe, $limit);
+                $candles = $exchangeName === 'bybit' ? ($candlesResponse['result']['list'] ?? []) : ($candlesResponse['data'] ?? []);
             }
 
             if (empty($candles)) {
@@ -143,15 +142,15 @@ class BacktestStrategyCommand extends Command
                         'close' => (float) $candle[4],
                         'volume' => (float) $candle[5],
                     ];
-                } elseif ($exchangeName === 'okx') {
-                    // OKX: [timestamp, open, high, low, close, volume, volumeCcy, volCcyQuote, confirm]
+                } else {
+                    // OKX (и результат пагинации): [timestamp, open, high, low, close, volume, ...]
                     $candleList[] = [
                         'timestamp' => (int) $candle[0],
                         'open' => (float) $candle[1],
                         'high' => (float) $candle[2],
                         'low' => (float) $candle[3],
                         'close' => (float) $candle[4],
-                        'volume' => (float) $candle[5],
+                        'volume' => (float) ($candle[5] ?? 0),
                     ];
                 }
             }
@@ -533,6 +532,57 @@ class BacktestStrategyCommand extends Command
         }
 
         $this->line(str_repeat('=', 60));
+    }
+
+    /**
+     * Получить до $wanted свечей с OKX (макс. 300 за запрос — делаем несколько запросов с after).
+     * Возвращает массив в формате OKX: [ [ts, o, h, l, c, vol, ...], ... ], старые первыми.
+     */
+    protected function fetchCandlesPublicOkxPaginated(string $symbol, string $timeframe, int $wanted): array
+    {
+        $okxSymbol = $this->formatOkxSymbol($symbol);
+        $intervalMap = [
+            '1m' => '1m', '5m' => '5m', '15m' => '15m', '30m' => '30m',
+            '1h' => '1H', '1H' => '1H', '2h' => '2H', '4h' => '4H', '4H' => '4H',
+            '1d' => '1D', '1D' => '1D', '1w' => '1W',
+        ];
+        $bar = $intervalMap[strtolower($timeframe)] ?? $timeframe;
+        $perRequest = 300;
+        $all = [];
+        $after = null;
+        while (count($all) < $wanted) {
+            $params = ['instId' => $okxSymbol, 'bar' => $bar, 'limit' => (string) min($perRequest, $wanted - count($all))];
+            if ($after !== null) {
+                $params['after'] = $after;
+            }
+            $response = Http::timeout(15)->withoutVerifying()->get('https://www.okx.com/api/v5/market/candles?' . http_build_query($params));
+            if (!$response->successful()) {
+                throw new \RuntimeException('OKX API HTTP error: ' . $response->status());
+            }
+            $json = $response->json();
+            if (($json['code'] ?? '0') !== '0') {
+                throw new \RuntimeException('OKX API error: ' . ($json['msg'] ?? 'Unknown'));
+            }
+            $data = $json['data'] ?? [];
+            if (empty($data)) {
+                break;
+            }
+            // OKX отдаёт новейшие первыми; для пагинации "after" = ts самой старой свечи (в ms)
+            foreach ($data as $c) {
+                $all[] = $c;
+            }
+            $oldestTs = (int) $data[count($data) - 1][0];
+            $after = (string) $oldestTs;
+            if (count($data) < $perRequest) {
+                break;
+            }
+            if (count($all) >= $wanted) {
+                break;
+            }
+        }
+        // старые первыми (как для единого массива по времени)
+        usort($all, fn ($a, $b) => (int) $a[0] <=> (int) $b[0]);
+        return array_slice($all, -$wanted);
     }
 
     /**
