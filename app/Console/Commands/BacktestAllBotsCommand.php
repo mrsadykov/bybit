@@ -247,18 +247,33 @@ class BacktestAllBotsCommand extends Command
         $this->info("Протестировано ботов (Bots tested): " . count($allResults));
         $this->line('');
 
-        // Сортируем по доходности
-        usort($allResults, function($a, $b) {
+        // Сортируем: сначала боты с хотя бы одной сделкой, по убыванию доходности, затем по PnL; потом боты без сделок
+        usort($allResults, function ($a, $b) {
+            $tradesA = $a['results']['total_trades'] ?? 0;
+            $tradesB = $b['results']['total_trades'] ?? 0;
+            if ($tradesA > 0 && $tradesB === 0) {
+                return -1;
+            }
+            if ($tradesA === 0 && $tradesB > 0) {
+                return 1;
+            }
             $returnA = $a['results']['return_percent'] ?? 0;
             $returnB = $b['results']['return_percent'] ?? 0;
-            return $returnB <=> $returnA;
+            if ($returnB !== $returnA) {
+                return $returnB <=> $returnA;
+            }
+            $pnlA = $a['results']['total_pnl'] ?? 0;
+            $pnlB = $b['results']['total_pnl'] ?? 0;
+            return $pnlB <=> $pnlA;
         });
 
         $this->info("🏆 ТОП-3 ЛУЧШИХ РЕЗУЛЬТАТА (TOP-3 BEST RESULTS):");
         $this->line('');
 
         foreach (array_slice($allResults, 0, min(3, count($allResults))) as $index => $result) {
-            $this->line(($index + 1) . ". {$result['symbol']} ({$result['timeframe']})");
+            $trades = $result['results']['total_trades'] ?? 0;
+            $tradesNote = $trades === 0 ? ' (0 сделок за период)' : '';
+            $this->line(($index + 1) . ". {$result['symbol']} ({$result['timeframe']}){$tradesNote}");
             $this->line("   Доходность (Return): " . number_format($result['results']['return_percent'] ?? 0, 2) . "%");
             $this->line("   Win Rate: " . number_format($result['results']['win_rate'] ?? 0, 2) . "%");
             $this->line("   Total PnL: " . number_format($result['results']['total_pnl'] ?? 0, 2) . " USDT");
@@ -273,7 +288,19 @@ class BacktestAllBotsCommand extends Command
         $this->info("💡 РЕКОМЕНДАЦИИ (RECOMMENDATIONS):");
         $this->line('');
 
-        $returns = array_filter(array_column(array_column($allResults, 'results'), 'return_percent'));
+        $resultsWithTrades = array_filter($allResults, fn ($r) => ($r['results']['total_trades'] ?? 0) > 0);
+        $countWithTrades = count($resultsWithTrades);
+        if ($countWithTrades < count($allResults)) {
+            $this->line("За период сделки были только у " . $countWithTrades . " из " . count($allResults) . " ботов; у остальных не было сигналов по RSI/EMA.");
+            $this->line('');
+        }
+
+        $returnsAll = array_column(array_column($allResults, 'results'), 'return_percent');
+        $returnsWithTrades = array_values(array_filter(array_map(function ($r) {
+            return isset($r['results']['total_trades']) && $r['results']['total_trades'] > 0
+                ? ($r['results']['return_percent'] ?? null) : null;
+        }, $allResults), fn ($v) => $v !== null));
+        $returns = !empty($returnsWithTrades) ? $returnsWithTrades : $returnsAll;
         $winRates = array_filter(array_column(array_column($allResults, 'results'), 'win_rate'));
 
         if (!empty($returns)) {
@@ -284,6 +311,9 @@ class BacktestAllBotsCommand extends Command
             $this->line("Средняя доходность (Average Return): " . number_format($avgReturn, 2) . "%");
             $this->line("Максимальная доходность (Max Return): " . number_format($maxReturn, 2) . "%");
             $this->line("Минимальная доходность (Min Return): " . number_format($minReturn, 2) . "%");
+            if (!empty($returnsWithTrades)) {
+                $this->line("(по ботам с сделками за период)");
+            }
             $this->line('');
 
             if ($avgReturn > 5) {
@@ -315,7 +345,10 @@ class BacktestAllBotsCommand extends Command
         $this->line('');
 
         $bestResult = $allResults[0] ?? null;
-        if ($bestResult && ($bestResult['results']['return_percent'] ?? 0) > 0) {
+        $bestTrades = $bestResult['results']['total_trades'] ?? 0;
+        $bestReturn = $bestResult['results']['return_percent'] ?? 0;
+
+        if ($bestTrades > 0 && $bestReturn > 0) {
             $this->line("Лучшие параметры (Best Parameters):");
             $this->line("  RSI Period: {$bestResult['rsi_period']}");
             $this->line("  EMA Period: {$bestResult['ema_period']}");
@@ -325,13 +358,17 @@ class BacktestAllBotsCommand extends Command
             } else {
                 $this->line("  Рекомендуется добавить Stop-Loss и Take-Profit для защиты капитала");
             }
+        } elseif ($bestTrades > 0 && $bestReturn <= 0) {
+            $this->line("За период ни один бот с сделками не дал положительной доходности. Не рекомендуется менять параметры по одному бэктесту — возможны комиссии и переобучение.");
+        } elseif ($bestTrades === 0) {
+            $this->line("За период не было сделок ни у одного бота (условия RSI/EMA не выполнялись). Параметры менять не обязательно — попробуйте другой период или дождитесь других рыночных условий.");
         }
 
         $this->line('');
         $this->info("📝 Следующие шаги:");
         $this->line("1. Проанализируйте результаты для каждой пары");
-        $this->line("2. Примените лучшие параметры к ботам");
-        $this->line("3. Добавьте Stop-Loss и Take-Profit для защиты капитала");
-        $this->line("4. Запустите реальную торговлю с оптимизированными параметрами");
+        $this->line("2. При положительной доходности у бота с сделками — при желании примените его параметры к другим");
+        $this->line("3. Убедитесь, что у всех ботов заданы Stop-Loss и Take-Profit");
+        $this->line("4. Запускайте реальную торговлю с осторожностью; бэктест на 1000 свечах не гарантирует результат");
     }
 }
